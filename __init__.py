@@ -74,7 +74,6 @@ class __AcnetdProtocol(asyncio.Protocol):
         ack_fut = asyncio.get_event_loop().create_future()
         self.qCmd.append(ack_fut)
         self.transport.write(buf)
-        print('waiting on future')
         ack_buf = await ack_fut
         return decode_ack(ack_buf)
 
@@ -97,9 +96,7 @@ class Connection:
         # get the reply.
 
         buf = struct.pack(">I2h3ih", 18, 1, 1, 0, 0, 0, 0)
-        print('performing transaction')
         res = await self.protocol.xact(buf)
-        print('got result')
         if len(res) == 4:
             self.handle = res[3]
         else:
