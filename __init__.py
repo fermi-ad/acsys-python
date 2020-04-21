@@ -63,8 +63,9 @@ class __AcnetdProtocol(asyncio.Protocol):
         self.transport.write(b'RAW\r\n\r\n')
 
     def connection_lost(self, exc):
-        print("unexpected loss of connection:", exc)
-        self.end()
+        if exc != None:
+            print("unexpected loss of connection:", exc)
+            self.end()
 
     def error_received(self, exc):
         print('Error received:', exc)
