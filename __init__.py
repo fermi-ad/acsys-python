@@ -109,18 +109,19 @@ class Connection:
         pass
 
 async def __client_main(loop, main):
-    _, proto = await loop.create_connection(lambda: __AcnetdProtocol(),
-                                            'acsys-proxy.fnal.gov', 6802)
-    con = Connection(proto)
-
     try:
-        await con.connect()
-        print('connected ... now passing to client routine')
-        await main(con)
-        print('client exited')
-    finally:
-        print('deleting Connection object')
-        del con
+        _, proto = await loop.create_connection(lambda: __AcnetdProtocol(),
+                                                'acsys-proxy.fnal.gov', 6802)
+    except TimeoutError:
+        print('timeout occurred while trying to connect to ACNET')
+    else:
+        con = Connection(proto)
+
+        try:
+            await con.connect()
+            await main(con)
+        finally:
+            del con
 
 def run_client(main):
     loop = asyncio.get_event_loop()
