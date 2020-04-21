@@ -1,4 +1,5 @@
 import asyncio
+import array
 import struct
 from collections import deque
 import status
@@ -90,6 +91,55 @@ class Connection:
 
     def __del__(self):
         self.protocol.end()
+    # Convert rad50 value to a string
+    @staticmethod
+    def __rtoa(r50):
+        result = array.array('B', b'      ')
+        chars = array.array('B', b' ABCDEFGHIJKLMNOPQRSTUVWXYZ$.%0123456789')
+
+        first_bit = r50 & 0xffff
+        second_bit = (r50 >> 16) & 0xffff
+
+        for index in range(0, 3):
+            result[int(2 - index)] = chars[int(first_bit % 40)]
+            first_bit /= 40
+            result[int(5 - index)] = chars[int(second_bit % 40)]
+            second_bit /= 40
+
+        return result.tostring()
+
+    # Convert a string to rad50 value
+    @staticmethod
+    def __ator(input_string):
+        def char_to_index(char):
+            if 'A' <= char <= 'Z':
+                return ord(char) - ord('A') + 1
+            if 'a' <= char <= 'z':
+                return ord(char) - ord('a') + 1
+            if '0' <= char <= '9':
+                return ord(char) - ord('0') + 30
+            if char == '$':
+                return 27
+            if char == '.':
+                return 28
+            if char == '%':
+                return 29
+            return 0
+
+        first_bit = 0
+        second_bit = 0
+        s_len = len(input_string)
+        for index in range(0, 6):
+            char = input_string[index] if index < s_len else ' '
+
+            if index < (6 / 2):
+                first_bit *= 40
+                first_bit += char_to_index(char)
+            else:
+                second_bit *= 40
+                second_bit += char_to_index(char)
+
+        return (second_bit << 16) | first_bit
 
     async def connect(self):
         # Send a CONNECT command requesting an anonymous handle and
@@ -98,7 +148,7 @@ class Connection:
         buf = struct.pack(">I2h3ih", 18, 1, 1, 0, 0, 0, 0)
         res = await self.protocol.xact(buf)
         if len(res) == 4:
-            self.handle = res[3]
+            self.handle = Connection.__rtoa(res[3])
         else:
             raise status.Status(res[1])
 
