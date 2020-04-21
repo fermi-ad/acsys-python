@@ -34,8 +34,9 @@ class __AcnetdProtocol(asyncio.Protocol):
             self.transport.close();
 
     def end(self):
-        self.transport.close()
-        self.transport = None
+        if self.transport:
+            self.transport.close()
+            self.transport = None
 
     def data_received(self, data):
 
