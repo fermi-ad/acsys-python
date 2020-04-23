@@ -383,7 +383,13 @@ will be raised.
 If the message is in an incorrect format or the timeout parameter
 isn't an integer, ValueError is raised.
         """
-        if isinstance(message, bytes) and isinstance(timeout, int):
+        if proto:
+            if hasattr(message, "marshal"):
+                message = bytearray(message.marshal())
+            else:
+                raise ValueError
+
+        if isinstance(message, (bytes, bytearray)) and isinstance(timeout, int):
             task, node = await self._split_taskname(remtsk)
             buf = struct.pack(">I2H3I2HI", 24 + len(message), 1, 18,
                               self._raw_handle, 0, task, node, 0,
@@ -407,8 +413,10 @@ isn't an integer, ValueError is raised.
                 # Otherwise the reply message is set as the result.
 
                 def reply_handler(reply):
-                    _, sts, _ = reply
+                    snd, sts, data = reply
                     if not sts.isFatal:
+                        if proto:
+                            reply = (snd, sts, proto.unmarshal_reply(iter(data)))
                         rpy_fut.set_result(reply)
                     else:
                         rpy_fut.set_exception(sts)
