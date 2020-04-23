@@ -3,9 +3,13 @@ class Status(Exception):
 
     def __init__(self, val):
         """Creates a status value which is initialized with the supplied
-        value.
+        value. The value must be in the range of signed, 16-bit
+        integers.
         """
-        self.value = val
+        if val > -0x8000 and val <= 0x7fff:
+            self.value = val
+        else:
+            raise ValueError
 
     @property
     def facility(self):
@@ -15,16 +19,19 @@ class Status(Exception):
     @property
     def errCode(self):
         """Returns the 'error' code of a status value."""
-        return self.value / 256
+        return self.value // 256
 
+    @property
     def isSuccess(self):
         """Returns True if the status represents a success status."""
         return self.errCode == 0
 
+    @property
     def isFatal(self):
         """Returns True if the status represents a fatal status."""
         return self.errCode < 0
 
+    @property
     def isWarning(self):
         """Returns True if the status represents a warning status."""
         return self.errCode > 0
