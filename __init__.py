@@ -107,7 +107,7 @@ class __AcnetdProtocol(asyncio.Protocol):
         super().__init__()
         self.transport = None
         self.buffer = b''
-        self.qCmd = deque()
+        self.qCmd = asyncio.Queue(100)
         self._rpy_map = {}
 
     def __del__(self):
@@ -121,27 +121,33 @@ class __AcnetdProtocol(asyncio.Protocol):
     def add_handler(self, reqid, handler):
         self._rpy_map[reqid] = handler
 
+    def _get_packet(self):
+        if len(self.buffer) >= 4:
+            total = (self.buffer[0] << 24) + (self.buffer[1] << 16) + \
+                    (self.buffer[2] << 8) + self.buffer[3]
+            if len(self.buffer) >= total + 4:
+                pkt = self.buffer[4:(total + 4)]
+                self.buffer = self.buffer[(total + 4):]
+                return pkt
+        return None
+
     def data_received(self, data):
 
         # Append to buffer and determine if enough data has arrived.
 
         self.buffer += data
-        total = (data[0] << 24) + (data[1] << 16) + (data[2] << 8) + data[3]
-        if len(self.buffer) >= total + 4:
 
-            # Strip off the leading packet. Leave the remaining data
-            # in `self.buffer`.
+        pkt = self._get_packet()
 
-            pkt = self.buffer[4:(total + 4)]
-            self.buffer = self.buffer[(total + 4):]
-            pkt_type = data[4] * 256 + data[5]
+        while pkt is not None:
+            pkt_type = pkt[0] * 256 + pkt[1]
 
             # Type 2 packets are ACKs for commands. There should
             # always be an element in the queue when we receive an
             # ACK.
 
             if pkt_type == 2:
-                self.qCmd.popleft().set_result(bytearray(pkt))
+                self.qCmd.get_nowait().set_result(bytearray(pkt))
 
             # Type 3 packets are ACNET reply traffic.
 
@@ -157,19 +163,19 @@ class __AcnetdProtocol(asyncio.Protocol):
 
                 f = self._rpy_map.get(reqid)
                 if f:
-
-                    # If bit 0 is clear, this is the last reply so we
-                    # remove the entry from the map.
+                    # If bit 0 is clear, this is the last reply so
+                    # we remove the entry from the map.
 
                     if (flg & 1) == 0:
                         del self._rpy_map[reqid]
 
-                    # Send the 3-tuple, (sender, status, message) to
-                    # the recipient.
+                    # Send the 3-tuple, (sender, status, message)
+                    # to the recipient.
 
                     f((t * 256 + n, status.Status(sts), pkt[20:]))
                 else:
                     print('*** warning: reply map does not contain {reqid}')
+            pkt = self._get_packet()
 
     # Gets called when the transport successfully connects. We send
     # out the RAW header to tell acnetd we're using the TCP socket in
@@ -189,10 +195,10 @@ class __AcnetdProtocol(asyncio.Protocol):
 
     async def xact(self, buf):
         ack_fut = asyncio.get_event_loop().create_future()
-        self.qCmd.append(ack_fut)
+        await self.qCmd.put(ack_fut)
         self.transport.write(buf)
-        ack_buf = await ack_fut
-        return _decode_ack(ack_buf)
+        result = await ack_fut
+        return _decode_ack(result)
 
 # This class manages the connection between the client and acnetd. It
 # defines the public API.
