@@ -1,3 +1,81 @@
+"""This module provides access to the ACNET Control System via the
+`acnetd` daemon (acnetd), allowing Python scripts to communicate with
+ACNET services and resources.
+
+This package targets Python3 and uses the async/await features of the
+language to allow concurrent access.
+
+To use this library, your main function should be marked `async` and
+take a single parameter which will be the ACNET Connection object.
+Your function should get passed to `acnet.run_client()`.
+
+
+EXAMPLE #1: Specifying your script's starting function.
+
+This simple example displays the ACNET handle that is assigned to the
+script when it connects to ACNET. It shows how to register a starting
+function and shows how it receives a Connection object you can use.
+
+    import acnet
+
+    async def main(con):
+        print(f'assigned handle: {con.handle}')
+
+    acnet.run_client(main)
+
+Your function can create as many asynchronous tasks as it wants.
+However, when the primary function returns, all other tasks will be
+stopped and your script will continue execution after the
+`acnet.run_client()` call.
+
+The Connection object provides a low-level API to ACNET. Most Python
+libraries will take this object and wrap an API around it when
+supporting a popular ACNET service (e.g. DPM, LOOKUP, etc.)
+
+
+EXAMPLE #2: Using Connection's low-level API to do node/name
+            translations.
+
+This example shows how to translate node names to and from node
+addresses using the ACNET service with which the script is associated.
+
+    import acnet
+
+    async def my_client(con):
+        # Look-up address of node CENTRA.
+
+        name = 'CENTRA'
+        addr = await con.get_addr(name)
+        print(f'node {name} has address {addr}')
+
+        # Do reverse look-up of CENTRA's address.
+
+        name = await con.get_name(addr)
+        print(f'node {addr} has name {name}')
+
+    acnet.run_client(my_client)
+
+
+EXAMPLE #3: Making a request for a single reply.
+
+This snippet shows how a request is made to another ACNET task.
+
+    import acnet
+
+    async def my_client(con):
+
+        # Send an ACNET "ping" message. This message is supported by
+        # the ACNET task on every node. Since the sender is the
+        # trunk/node address, translate it to a string for displaying.
+
+        snd, sts, msg = await con.request_reply('ACNET@CENTRA', b'\x00\x00')
+        snd = await con.get_name(snd)
+        print(f'reply from {snd}: status={str(sts)}, msg={msg}')
+
+    acnet.run_client(my_client)
+
+"""
+
 import asyncio
 import array
 import struct
@@ -120,10 +198,19 @@ class __AcnetdProtocol(asyncio.Protocol):
 # defines the public API.
 
 class Connection:
-    """Manages and maintains a connection to the ACSys control system.
-    """
+    """Manages and maintains a connection to the ACSys control system. In
+addition to methods that make requests, this object has methods that
+directly interact with the local ACNET service."""
 
     def __init__(self, proto):
+        """Constructor.
+
+Creates a disconnected instance of a Connection object. This instance
+can't be properly used until further steps are completed.  SCRIPTS
+SHOULDN'T CREATE CONNECTIONS; they should receive a properly created
+one indirectly through `acnet.run_client()`.
+        """
+        self._raw_handle = 0
         self.handle = None
         self.protocol = proto
 
