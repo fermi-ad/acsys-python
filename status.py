@@ -46,13 +46,13 @@ class Status(Exception):
 # This section associates common ACNET status codes with the
 # acnet.Status class.
 
-Status.ACNET_SUCCESS =  Status(1 + 256 * 0)
-Status.ACNET_PEND =     Status(1 + 256 * 1)
-Status.ACNET_ENDMULT =  Status(1 + 256 * 2)
+ACNET_SUCCESS =  Status(1 + 256 * 0)
+ACNET_PEND =     Status(1 + 256 * 1)
+ACNET_ENDMULT =  Status(1 + 256 * 2)
 
-Status.ACNET_RETRY =    Status(1 + 256 * -1)
-Status.ACNET_NOLCLMEM = Status(1 + 256 * -2)
-Status.ACNET_NOREMMEM = Status(1 + 256 * -3)
-Status.ACNET_RPLYPACK = Status(1 + 256 * -4)
-Status.ACNET_REQPACK =  Status(1 + 256 * -5)
-Status.ACNET_REQTMO =   Status(1 + 256 * -6)
+ACNET_RETRY =    Status(1 + 256 * -1)
+ACNET_NOLCLMEM = Status(1 + 256 * -2)
+ACNET_NOREMMEM = Status(1 + 256 * -3)
+ACNET_RPLYPACK = Status(1 + 256 * -4)
+ACNET_REQPACK =  Status(1 + 256 * -5)
+ACNET_REQTMO =   Status(1 + 256 * -6)
