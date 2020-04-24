@@ -65,8 +65,7 @@ This snippet shows how a request is made to another ACNET task.
     async def my_client(con):
 
         # Send an ACNET "ping" message. This message is supported by
-        # the ACNET task on every node. Since the sender is the
-        # trunk/node address, translate it to a string for displaying.
+        # the ACNET task on every node.
 
         snd, sts, msg = await con.request_reply('ACNET@CENTRA', b'\x00\x00')
         snd = await con.get_name(snd)
@@ -74,6 +73,25 @@ This snippet shows how a request is made to another ACNET task.
 
     acnet.run_client(my_client)
 
+
+EXAMPLE #4: Making simultaneous requests
+
+This snippet looks up the addresses of three ACNET nodes simultaneously.
+
+    import asyncio
+    import acnet
+
+    async def my_client(con):
+        results = await asyncio.gather(
+            con.get_addr('CENTRA'),
+            con.get_addr('CENTRY'),
+            con.get_addr('CLXSRV')
+        )
+
+        for ii in results:
+            print(ii)
+
+    acnet.run_client(my_client)
 """
 
 import asyncio
@@ -94,7 +112,7 @@ _ackMap = {
     16: lambda buf: struct.unpack(">2xHhHI", buf)
 }
 
-def _throw_bug(_): raise Status.ACNET_REQTMO
+def _throw_bug(_): raise status.ACNET_REQTMO
 
 def _decode_ack(buf):
     return (_ackMap.get(buf[2] * 256 + buf[3], _throw_bug))(buf)
@@ -163,16 +181,21 @@ class __AcnetdProtocol(asyncio.Protocol):
 
                 f = self._rpy_map.get(reqid)
                 if f:
+                    last = (flg & 1) == 0
+
                     # If bit 0 is clear, this is the last reply so
                     # we remove the entry from the map.
 
-                    if (flg & 1) == 0:
+                    if last:
                         del self._rpy_map[reqid]
+
+                    sts = status.Status(sts)
 
                     # Send the 3-tuple, (sender, status, message)
                     # to the recipient.
 
-                    f((t * 256 + n, status.Status(sts), pkt[20:]))
+                    if sts != status.ACNET_PEND:
+                        f((t * 256 + n, sts, pkt[20:]), last)
                 else:
                     print('*** warning: reply map does not contain {reqid}')
             pkt = self._get_packet()
@@ -360,6 +383,30 @@ node name, `name`.
         else:
             raise ValueError
 
+    async def _mk_req(self, remtsk, message, mult, proto, timeout):
+        if proto:
+            if hasattr(message, "marshal"):
+                message = bytearray(message.marshal())
+            else:
+                raise ValueError
+
+        if isinstance(message, (bytes, bytearray)) and isinstance(timeout, int):
+            task, node = await self._split_taskname(remtsk)
+            buf = struct.pack(">I2H3I2HI", 24 + len(message), 1, 18,
+                              self._raw_handle, 0, task, node, mult,
+                              timeout) + message
+            res = await self.protocol.xact(buf)
+            sts = status.Status(res[1])
+
+            # A good reply is a tuple with 4 elements.
+
+            if sts.isSuccess and len(res) == 3:
+                return res[2]
+            else:
+                raise sts
+        else:
+            raise ValueError
+
     async def request_reply(self, remtsk, message, *, proto=None, timeout=1000):
         """Request a single reply from an ACNET task.
 
@@ -389,55 +436,88 @@ will be raised.
 If the message is in an incorrect format or the timeout parameter
 isn't an integer, ValueError is raised.
         """
-        if proto:
-            if hasattr(message, "marshal"):
-                message = bytearray(message.marshal())
+        reqid = await self._mk_req(remtsk, message, 0, proto, timeout)
+
+        # Create a future which will eventually resolve to the
+        # reply.
+
+        loop = asyncio.get_event_loop()
+        rpy_fut = loop.create_future()
+
+        # Define a function we can use to stuff the future
+        # with the reply. If the status is fatal, this
+        # function will resolve the future with an exception.
+        # Otherwise the reply message is set as the result.
+
+        def reply_handler(reply, _):
+            snd, sts, data = reply
+            if not sts.isFatal:
+                if proto:
+                    reply = (snd, sts, proto.unmarshal_reply(iter(data)))
+                rpy_fut.set_result(reply)
             else:
-                raise ValueError
+                rpy_fut.set_exception(sts)
 
-        if isinstance(message, (bytes, bytearray)) and isinstance(timeout, int):
-            task, node = await self._split_taskname(remtsk)
-            buf = struct.pack(">I2H3I2HI", 24 + len(message), 1, 18,
-                              self._raw_handle, 0, task, node, 0,
-                              timeout) + message
-            res = await self.protocol.xact(buf)
-            sts = status.Status(res[1])
+        # Save the handler in the map and return the future.
 
-            # A good reply is a tuple with 4 elements.
+        self.protocol.add_handler(reqid, reply_handler)
+        return (await rpy_fut)
 
-            if sts.isSuccess and len(res) == 3:
+    async def request_stream(self, remtsk, message, *, proto=None, timeout=1000):
+        """Request a stream of replies from an ACNET task.
 
-                # Create a future which will eventually resolve to the
-                # reply.
+This function sends a request to an ACNET task and returns an async
+generator which returns the stream of replies. Each reply is a 3-tuple
+where the first element is the trunk/node address of the sender, the
+second is the ACNET status of the request, and the third is the reply
+data.
 
-                loop = asyncio.get_event_loop()
-                rpy_fut = loop.create_future()
+The ACNET status in each reply will always be good (i.e. success or
+warning); receiving a fatal status results in the generator throwing
+an exception.
 
-                # Define a function we can use to stuff the future
-                # with the reply. If the status is fatal, this
-                # function will resolve the future with an exception.
-                # Otherwise the reply message is set as the result.
+'remtsk' is a string representing the remote ACNET task in the format
+"TASKNAME@NODENAME".
 
-                def reply_handler(reply):
-                    snd, sts, data = reply
-                    if not sts.isFatal:
-                        if proto:
-                            reply = (snd, sts, proto.unmarshal_reply(iter(data)))
-                        rpy_fut.set_result(reply)
-                    else:
-                        rpy_fut.set_exception(sts)
+'message' is either a bytes type, or a type that's an acceptable value
+for a protocol (specified by the 'proto' parameter.)
 
-                # Save the handler in the map and return the future.
+'proto' is an optional, named parameter. If omitted, the message must
+be a bytes type. If specified, it should be the name of a module
+generated by the Protocol Compiler.
 
-                self.protocol.add_handler(res[2], reply_handler)
-                return (await rpy_fut)
-            else:
-                raise sts
-        else:
-            raise ValueError
+'timeout' is an optional field which sets the timeout between each
+reply.  If any reply doesn't arrive in time, an ACNET_UTIME status
+will be raised.
 
-    async def request_stream(self, task, message):
-        pass
+If the message is in an incorrect format or the timeout parameter
+isn't an integer, ValueError is raised.
+        """
+        try:
+            reqid = await self._mk_req(remtsk, message, 1, proto, timeout)
+            rpy_q = asyncio.Queue()
+            done = False
+
+            def handler(rpy, last):
+                rpy_q.put_nowait(rpy)
+                done = last
+
+            # Save the handler in the map.
+
+            self.protocol.add_handler(reqid, handler)
+
+            # This section implements the async generator.
+
+            while not done:
+                snd, sts, msg = await rpy_q.get()
+                if not sts.isFatal:
+                    if proto is not None and len(msg) > 0:
+                        msg = proto.unmarshal_reply(iter(msg))
+                    yield (snd, sts, msg)
+                else:
+                    raise sts
+        finally:
+            await self._cancel(reqid)
 
 async def __client_main(loop, main):
     try:
