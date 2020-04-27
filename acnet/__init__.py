@@ -98,7 +98,7 @@ import asyncio
 import array
 import struct
 from collections import deque
-import status
+import acnet.status
 
 # This map and the two following functions define a framework which
 # decodes incoming ACK packets.
