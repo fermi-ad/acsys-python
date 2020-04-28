@@ -1,4 +1,4 @@
-acsys.tgz : LICENSE README.md setup.py acsys/*py
+acsys.tgz : LICENSE README.md setup.py acsys/*py acsys/dpm/*.py
 	tar czf $@ $^
 
 clean ::
