@@ -375,6 +375,20 @@ node name, `name`.
         else:
             raise ValueError
 
+    async def _to_trunknode(self, node):
+        if isinstance(node, str):
+            node = await self.get_addr(node)
+        elif not isinstance(node, int):
+            raise ValueError('node should be an integer or string')
+        return node
+
+    async def _to_nodename(self, node):
+        if isinstance(node, int):
+            node = await self.get_name(node)
+        elif not isinstance(node, str):
+            raise ValueError('node should be an integer or string')
+        return node
+
     async def _split_taskname(self, taskname):
         part = taskname.split('@', 1)
         if len(part) == 2:
@@ -518,6 +532,25 @@ isn't an integer, ValueError is raised.
                     raise sts
         finally:
             await self._cancel(reqid)
+
+    async def ping(self, node):
+        """Pings an ACNET node.
+
+        Uses the Level2 protocol to perform an ACNET ping
+        request. Returns True if the node responded or False if it
+        didn't. A node is given 1/4 second to respond. If the
+        Connection has problems, this method will raise an ACNET
+        Status code.
+        """
+        node = await self._to_nodename(node)
+        try:
+            await self.request_reply('ACNET@' + node, b'\x00\x00')
+            return True
+        except acnet.status.Status as e:
+            if e == acnet.status.ACNET_REQTMO:
+                return False
+            else:
+                raise e
 
 async def __client_main(loop, main):
     try:
