@@ -352,7 +352,7 @@ Returns the ACNET node name associated with the ACNET node address,
             else:
                 raise sts
         else:
-            raise ValueError
+            raise ValueError('addr must be in the range of a 16-bit, signed integer')
 
     async def get_addr(self, name):
         """Look-up node address.
@@ -373,7 +373,7 @@ node name, `name`.
             else:
                 raise sts
         else:
-            raise ValueError
+            raise ValueError('name must be a string of no more than 6 characters')
 
     async def _to_trunknode(self, node):
         if isinstance(node, str):
@@ -395,14 +395,14 @@ node name, `name`.
             addr = await self.get_addr(part[1])
             return (Connection.__ator(part[0]), addr)
         else:
-            raise ValueError
+            raise ValueError('too many @ characters')
 
     async def _mk_req(self, remtsk, message, mult, proto, timeout):
         if proto:
             if hasattr(message, "marshal"):
                 message = bytearray(message.marshal())
             else:
-                raise ValueError
+                raise ValueError('message wasn''t created by the protocol compiler')
 
         if isinstance(message, (bytes, bytearray)) and isinstance(timeout, int):
             task, node = await self._split_taskname(remtsk)
@@ -419,7 +419,7 @@ node name, `name`.
             else:
                 raise sts
         else:
-            raise ValueError
+            raise ValueError('message must be a binary')
 
     async def request_reply(self, remtsk, message, *, proto=None, timeout=1000):
         """Request a single reply from an ACNET task.
