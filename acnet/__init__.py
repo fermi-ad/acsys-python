@@ -222,9 +222,22 @@ class __AcnetdProtocol(asyncio.Protocol):
         self.transport.write(b'RAW\r\n\r\n')
 
     def connection_lost(self, exc):
-        if exc != None:
-            print('unexpected loss of connection:', exc)
-            self.end()
+        self.end()
+
+        # Loop through all active requests and send a message
+        # indicating the request is done.
+
+        msg = (0, acnet.status.ACNET_DISCONNECTED, b'')
+        for _, f in self._rpy_map.items():
+            f(msg, True)
+        self._rpy_map = {}
+
+	# Send an error to all pending ACKs. The '\xde\x01' value is
+	# ACNET_DISCONNECTED.
+
+        msg = b'\x00\x00\xde\x01'
+        while not self.qCmd.empty():
+            self.qCmd.get_nowait().set_result(msg)
 
     def error_received(self, exc):
         print('Error received:', exc)
