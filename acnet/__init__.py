@@ -127,6 +127,7 @@ class __AcnetdProtocol(asyncio.Protocol):
         self.buffer = b''
         self.qCmd = asyncio.Queue(100)
         self._rpy_map = {}
+        self._rpy_queue = []
 
     def __del__(self):
         self.end()
@@ -148,6 +149,18 @@ class __AcnetdProtocol(asyncio.Protocol):
                 self.buffer = self.buffer[(total + 4):]
                 return pkt
         return None
+
+    def pop_reqid(self, reqid):
+        items = []
+        rest = []
+        for ii in self._rpy_queue:
+            a, b, c, e, f = ii
+            if a == reqid:
+                items.append(ii)
+            else:
+                rest.append(ii)
+        self._rpy_queue = rest
+        return items
 
     def data_received(self, data):
 
@@ -175,14 +188,14 @@ class __AcnetdProtocol(asyncio.Protocol):
 
                 (flg, sts, t, n, reqid) = struct.unpack_from('<HhBB8xH', pkt,
                                                              offset=2)
+                replier = t * 256 + n
+                last = (flg & 1) == 0
 
                 # Check to see if there's a function associated with
                 # the request ID
 
                 f = self._rpy_map.get(reqid)
                 if f:
-                    last = (flg & 1) == 0
-
                     # If bit 0 is clear, this is the last reply so
                     # we remove the entry from the map.
 
@@ -195,9 +208,9 @@ class __AcnetdProtocol(asyncio.Protocol):
                     # to the recipient.
 
                     if sts != status.ACNET_PEND:
-                        f((t * 256 + n, sts, pkt[20:]), last)
+                        f((replier, sts, pkt[20:]), last)
                 else:
-                    print('*** warning: reply map does not contain {reqid}')
+                    self._rpy_queue.append((reqid, replier, sts, pkt[20:], last))
             pkt = self._get_packet()
 
     # Gets called when the transport successfully connects. We send
@@ -474,8 +487,12 @@ isn't an integer, ValueError is raised.
 
         # Save the handler in the map and return the future.
 
-        self.protocol.add_handler(reqid, reply_handler)
-        return (await rpy_fut)
+        replies = self.protocol.pop_reqid(reqid)
+        if len(replies) == 0:
+            self.protocol.add_handler(reqid, reply_handler)
+            return (await rpy_fut)
+        else:
+            return (replies[0][1], replies[0][2], replies[0][3])
 
     async def request_stream(self, remtsk, message, *, proto=None, timeout=1000):
         """Request a stream of replies from an ACNET task.
@@ -515,6 +532,12 @@ isn't an integer, ValueError is raised.
             def handler(rpy, last):
                 rpy_q.put_nowait(rpy)
                 done = last
+
+            # Pre-stuff the queue with replies that may already have
+            # arrived.
+
+            for _, snd, sts, pkt, last in self.protocol.pop_reqid(reqid):
+                handler((snd, sts, pkt), last)
 
             # Save the handler in the map.
 
