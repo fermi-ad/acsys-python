@@ -223,7 +223,7 @@ class __AcnetdProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc):
         if exc != None:
-            print("unexpected loss of connection:", exc)
+            print('unexpected loss of connection:', exc)
             self.end()
 
     def error_received(self, exc):
