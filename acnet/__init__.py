@@ -490,7 +490,7 @@ isn't an integer, ValueError is raised.
         replies = self.protocol.pop_reqid(reqid)
         if len(replies) == 0:
             self.protocol.add_handler(reqid, reply_handler)
-            return (await rpy_fut)
+            return rpy_fut
         else:
             return (replies[0][1], replies[0][2], replies[0][3])
 
