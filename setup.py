@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="acnet",
-    version="0.2.0",
+    version="0.3.0",
     author="Rich Neswold",
     author_email="neswold@fnal.gov",
     description="ACNET Client library",
