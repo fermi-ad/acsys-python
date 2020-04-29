@@ -542,6 +542,7 @@ isn't an integer, ValueError is raised.
             # Save the handler in the map.
 
             self.protocol.add_handler(reqid, handler)
+            await self._ack_request(reqid)
 
             # This section implements the async generator.
 
