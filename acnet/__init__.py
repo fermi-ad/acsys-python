@@ -100,6 +100,7 @@ This snippet looks up the addresses of three ACNET nodes simultaneously.
 import asyncio
 import logging
 import array
+import socket
 import struct
 from collections import deque
 import acnet.status
@@ -237,7 +238,7 @@ class __AcnetdProtocol(asyncio.Protocol):
         # Loop through all active requests and send a message
         # indicating the request is done.
 
-        msg = (0, acnet.status.ACNET_DISCONNECTED, b'')
+        msg = (0, ACNET_DISCONNECTED, b'')
         for _, f in self._rpy_map.items():
             f(msg, True)
         self._rpy_map = {}
@@ -255,9 +256,11 @@ class __AcnetdProtocol(asyncio.Protocol):
     async def xact(self, buf):
         ack_fut = asyncio.get_event_loop().create_future()
         await self.qCmd.put(ack_fut)
-        self.transport.write(buf)
-        result = await ack_fut
-        return _decode_ack(result)
+        if self.transport is not None:
+            self.transport.write(buf)
+            return _decode_ack(await ack_fut)
+        else:
+            raise ACNET_DISCONNECTED
 
 # This class manages the connection between the client and acnetd. It
 # defines the public API.
@@ -267,7 +270,7 @@ class Connection:
 addition to methods that make requests, this object has methods that
 directly interact with the local ACNET service."""
 
-    def __init__(self, proto):
+    def __init__(self):
         """Constructor.
 
 Creates a disconnected instance of a Connection object. This instance
@@ -277,10 +280,11 @@ one indirectly through `acnet.run_client()`.
         """
         self._raw_handle = 0
         self.handle = None
-        self.protocol = proto
+        self.protocol = None
 
     def __del__(self):
-        self.protocol.end()
+        if self.protocol is not None:
+            self.protocol.end()
 
     # Convert rad50 value to a string
 
@@ -334,13 +338,36 @@ one indirectly through `acnet.run_client()`.
 
         return (second_bit << 16) | first_bit
 
+    async def _xact(self, buf):
+        if self.protocol is not None:
+            while True:
+                try:
+                    return await self.protocol.xact(buf)
+                except acnet.status.Status as sts:
+                    if sts != ACNET_DISCONNECTED or self.protocol is None:
+                        raise
+
+                # We got an ACNET_DISCONNECTED. Try to reconnect.
+
+                self.protocol = None
+                while self.protocol is None:
+                    await asyncio.sleep(2)
+                    _log.info('retrying connection to ACNET')
+                    proto = await _create_socket()
+                    try:
+                        await self._connect(proto)
+                    except:
+                        pass
+        else:
+            raise ACNET_DISCONNECTED
+
     # Used to tell acnetd to cancel a specific request ID. This method
     # doesn't return an error; if the request ID existed, it'll be
     # gone and if it didn't, it's still gone.
 
     async def _cancel(self, reqid):
         buf = struct.pack(">I2H2IH", 14, 1, 8, self._raw_handle, 0, reqid)
-        await self.protocol.xact(buf)
+        await self._xact(buf)
 
     # acnetd needs to know when a client is ready to receive replies
     # to a request. This method informs acnetd which request has been
@@ -348,24 +375,29 @@ one indirectly through `acnet.run_client()`.
 
     async def _ack_request(self, reqid):
         buf = struct.pack(">I2H2IH", 14, 1, 9, self._raw_handle, 0, reqid)
-        await self.protocol.xact(buf)
+        await self._xact(buf)
 
     # Finish initializing a Connection object. The construction can't
     # block for the CONNECT command so we have to initialize in two
     # steps.
 
-    async def _connect(self):
+    async def _connect(self, proto):
+
         # Send a CONNECT command requesting an anonymous handle and
-        # get the reply.
+        # get the reply. Use 'proto' directly to call '.xact()' since
+        # 'self.protocol' hasn't been assigned yet. This prevents
+        # other clients from using the Connection until we register
+        # and get a handle.
 
         _log.debug('registering with ACNET')
         buf = struct.pack(">I2H3IH", 18, 1, 1, self._raw_handle, 0, 0, 0)
-        res = await self.protocol.xact(buf)
+        res = await proto.xact(buf)
         sts = status.Status(res[1])
 
         # A good reply is a tuple with 4 elements.
 
         if sts.isSuccess and len(res) == 4:
+            self.protocol = proto
             self._raw_handle = res[3]
             self.handle = Connection.__rtoa(res[3])
             _log.info('connected to ACNET with handle %s', self.handle)
@@ -380,7 +412,7 @@ Returns the ACNET node name associated with the ACNET node address,
         """
         if isinstance(addr, int) and addr >= 0 and addr <= 0x10000:
             buf = struct.pack(">I2H2IH", 14, 1, 12, self._raw_handle, 0, addr)
-            res = await self.protocol.xact(buf)
+            res = await self._xact(buf)
             sts = status.Status(res[1])
 
             # A good reply is a tuple with 4 elements.
@@ -401,7 +433,7 @@ node name, `name`.
         if isinstance(name, str) and len(name) <= 6:
             buf = struct.pack(">I2H3I", 16, 1, 11, self._raw_handle, 0,
                               Connection.__ator(name))
-            res = await self.protocol.xact(buf)
+            res = await self._xact(buf)
             sts = status.Status(res[1])
 
             # A good reply is a tuple with 4 elements.
@@ -415,17 +447,19 @@ node name, `name`.
 
     async def _to_trunknode(self, node):
         if isinstance(node, str):
-            node = await self.get_addr(node)
+            return await self.get_addr(node)
         elif not isinstance(node, int):
             raise ValueError('node should be an integer or string')
-        return node
+        else:
+            return node
 
     async def _to_nodename(self, node):
         if isinstance(node, int):
-            node = await self.get_name(node)
+            return await self.get_name(node)
         elif not isinstance(node, str):
             raise ValueError('node should be an integer or string')
-        return node
+        else:
+            return node
 
     async def _split_taskname(self, taskname):
         part = taskname.split('@', 1)
@@ -447,7 +481,7 @@ node name, `name`.
             buf = struct.pack(">I2H3I2HI", 24 + len(message), 1, 18,
                               self._raw_handle, 0, task, node, mult,
                               timeout) + message
-            res = await self.protocol.xact(buf)
+            res = await self._xact(buf)
             sts = status.Status(res[1])
 
             # A good reply is a tuple with 4 elements.
@@ -510,7 +544,11 @@ isn't an integer, ValueError is raised.
             else:
                 rpy_fut.set_exception(sts)
 
-        # Save the handler in the map and return the future.
+        # Save the handler in the map and return the future. BTW, we
+        # don't have to test for the validity of 'self.protocol' here
+        # because, to reach this point, the previous call to
+        # `._mk_req` didn't throw an exception (which it would have if
+        # `self.protocol` was None.
 
         replies = self.protocol.pop_reqid(reqid)
         if len(replies) == 0:
@@ -559,7 +597,10 @@ isn't an integer, ValueError is raised.
                 done = last
 
             # Pre-stuff the queue with replies that may already have
-            # arrived.
+            # arrived. BTW, we don't have to test for the validity of
+            # 'self.protocol' here because, to reach this point, the
+            # previous call to `._mk_req` didn't throw an exception
+            # (which it would have if `self.protocol` was None.
 
             for _, snd, sts, pkt, last in self.protocol.pop_reqid(reqid):
                 handler((snd, sts, pkt), last)
@@ -602,25 +643,35 @@ isn't an integer, ValueError is raised.
             else:
                 raise e
 
-async def __client_main(loop, main):
+async def _create_socket():
     try:
-        _, proto = await loop.create_connection(lambda: __AcnetdProtocol(),
-                                                'firus-gate.fnal.gov', 6802)
-    except TimeoutError:
-        print('timeout occurred while trying to connect to ACNET')
+        s = socket.create_connection(('firus-gate.fnal.gov', 6802), 0.25)
+    except socket.timeout:
+        _log.warning('timeout connecting to ACNET')
+        return None
     else:
-        con = Connection(proto)
+        loop = asyncio.get_event_loop()
+        _log.info('creating ACNET transport')
+        _, proto = await loop.create_connection(lambda: __AcnetdProtocol(),
+                                                sock=s)
+        return proto
 
+async def __client_main(main):
+    proto = await _create_socket()
+    if proto is not None:
+        con = Connection()
         try:
-            await con._connect()
+            await con._connect(proto)
             await main(con)
         finally:
             del con
+    else:
+        _log.error('*** unable to connect to ACNET')
+        raise ACNET_DISCONNECTED
 
 def run_client(main):
     """Starts an asynchronous session for ACNET clients. `main` is an
 async function which will receive a fully initialized Connection
 object. When 'main' resolves, this function will return.
     """
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(__client_main(loop, main))
+    asyncio.get_event_loop().run_until_complete(__client_main(main))
