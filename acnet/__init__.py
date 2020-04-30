@@ -9,6 +9,9 @@ To use this library, your main function should be marked `async` and
 take a single parameter which will be the ACNET Connection object.
 Your function should get passed to `acnet.run_client()`.
 
+This library writes to the 'asyncio' logger. Your script can configure
+the logger as it sees fit.
+
 
 EXAMPLE #1: Specifying your script's starting function.
 
@@ -95,10 +98,15 @@ This snippet looks up the addresses of three ACNET nodes simultaneously.
 """
 
 import asyncio
+import logging
 import array
 import struct
 from collections import deque
 import acnet.status
+
+from acnet.status import ACNET_DISCONNECTED
+
+_log = logging.getLogger("asyncio")
 
 # This map and the two following functions define a framework which
 # decodes incoming ACK packets.
@@ -220,9 +228,11 @@ class __AcnetdProtocol(asyncio.Protocol):
     def connection_made(self, transport):
         self.transport = transport
         self.transport.write(b'RAW\r\n\r\n')
+        _log.debug('connected to ACNET')
 
     def connection_lost(self, exc):
         self.end()
+        _log.warning('lost connection with ACNET')
 
         # Loop through all active requests and send a message
         # indicating the request is done.
@@ -240,7 +250,7 @@ class __AcnetdProtocol(asyncio.Protocol):
             self.qCmd.get_nowait().set_result(msg)
 
     def error_received(self, exc):
-        print('Error received:', exc)
+        _log.error('ACNET socket error', exc_info=True)
 
     async def xact(self, buf):
         ack_fut = asyncio.get_event_loop().create_future()
@@ -348,6 +358,7 @@ one indirectly through `acnet.run_client()`.
         # Send a CONNECT command requesting an anonymous handle and
         # get the reply.
 
+        _log.debug('registering with ACNET')
         buf = struct.pack(">I2H3IH", 18, 1, 1, self._raw_handle, 0, 0, 0)
         res = await self.protocol.xact(buf)
         sts = status.Status(res[1])
@@ -357,6 +368,7 @@ one indirectly through `acnet.run_client()`.
         if sts.isSuccess and len(res) == 4:
             self._raw_handle = res[3]
             self.handle = Connection.__rtoa(res[3])
+            _log.info('connected to ACNET with handle %s', self.handle)
         else:
             raise sts
 
@@ -568,6 +580,7 @@ isn't an integer, ValueError is raised.
                 else:
                     raise sts
         finally:
+            _log.debug('canceling request %d', reqid)
             await self._cancel(reqid)
 
     async def ping(self, node):
