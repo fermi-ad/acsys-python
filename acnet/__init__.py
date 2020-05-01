@@ -107,18 +107,18 @@ import acnet.status
 
 from acnet.status import ACNET_DISCONNECTED
 
-_log = logging.getLogger("asyncio")
+_log = logging.getLogger('asyncio')
 
 # This map and the two following functions define a framework which
 # decodes incoming ACK packets.
 
 _ackMap = {
-    0: lambda buf: struct.unpack(">2xHh", buf),
-    1: lambda buf: struct.unpack(">2xHhBI", buf),
-    2: lambda buf: struct.unpack(">2xHhH", buf),
-    4: lambda buf: struct.unpack(">2xHhBB", buf),
-    5: lambda buf: struct.unpack(">2xHhI", buf),
-    16: lambda buf: struct.unpack(">2xHhHI", buf)
+    0: lambda buf: struct.unpack('>2xHh', buf),
+    1: lambda buf: struct.unpack('>2xHhBI', buf),
+    2: lambda buf: struct.unpack('>2xHhH', buf),
+    4: lambda buf: struct.unpack('>2xHhBB', buf),
+    5: lambda buf: struct.unpack('>2xHhI', buf),
+    16: lambda buf: struct.unpack('>2xHhHI', buf)
 }
 
 def _throw_bug(_): raise status.ACNET_REQTMO
@@ -366,7 +366,7 @@ one indirectly through `acnet.run_client()`.
     # gone and if it didn't, it's still gone.
 
     async def _cancel(self, reqid):
-        buf = struct.pack(">I2H2IH", 14, 1, 8, self._raw_handle, 0, reqid)
+        buf = struct.pack('>I2H2IH', 14, 1, 8, self._raw_handle, 0, reqid)
         await self._xact(buf)
 
     # acnetd needs to know when a client is ready to receive replies
@@ -374,7 +374,7 @@ one indirectly through `acnet.run_client()`.
     # prepared.
 
     async def _ack_request(self, reqid):
-        buf = struct.pack(">I2H2IH", 14, 1, 9, self._raw_handle, 0, reqid)
+        buf = struct.pack('>I2H2IH', 14, 1, 9, self._raw_handle, 0, reqid)
         await self._xact(buf)
 
     # Finish initializing a Connection object. The construction can't
@@ -390,7 +390,7 @@ one indirectly through `acnet.run_client()`.
         # and get a handle.
 
         _log.debug('registering with ACNET')
-        buf = struct.pack(">I2H3IH", 18, 1, 1, self._raw_handle, 0, 0, 0)
+        buf = struct.pack('>I2H3IH', 18, 1, 1, self._raw_handle, 0, 0, 0)
         res = await proto.xact(buf)
         sts = status.Status(res[1])
 
@@ -411,7 +411,7 @@ Returns the ACNET node name associated with the ACNET node address,
 `addr`.
         """
         if isinstance(addr, int) and addr >= 0 and addr <= 0x10000:
-            buf = struct.pack(">I2H2IH", 14, 1, 12, self._raw_handle, 0, addr)
+            buf = struct.pack('>I2H2IH', 14, 1, 12, self._raw_handle, 0, addr)
             res = await self._xact(buf)
             sts = status.Status(res[1])
 
@@ -431,7 +431,7 @@ Returns the ACNET trunk/node node address associated with the ACNET
 node name, `name`.
         """
         if isinstance(name, str) and len(name) <= 6:
-            buf = struct.pack(">I2H3I", 16, 1, 11, self._raw_handle, 0,
+            buf = struct.pack('>I2H3I', 16, 1, 11, self._raw_handle, 0,
                               Connection.__ator(name))
             res = await self._xact(buf)
             sts = status.Status(res[1])
@@ -471,14 +471,14 @@ node name, `name`.
 
     async def _mk_req(self, remtsk, message, mult, proto, timeout):
         if proto:
-            if hasattr(message, "marshal"):
+            if hasattr(message, 'marshal'):
                 message = bytearray(message.marshal())
             else:
                 raise ValueError('message wasn''t created by the protocol compiler')
 
         if isinstance(message, (bytes, bytearray)) and isinstance(timeout, int):
             task, node = await self._split_taskname(remtsk)
-            buf = struct.pack(">I2H3I2HI", 24 + len(message), 1, 18,
+            buf = struct.pack('>I2H3I2HI', 24 + len(message), 1, 18,
                               self._raw_handle, 0, task, node, mult,
                               timeout) + message
             res = await self._xact(buf)
