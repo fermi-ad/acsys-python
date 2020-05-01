@@ -178,7 +178,7 @@ class __AcnetdProtocol(asyncio.Protocol):
 
         pkt = self._get_packet()
 
-        while pkt is not None:
+        while not (pkt is None):
             pkt_type = pkt[0] * 256 + pkt[1]
 
             # Type 2 packets are ACKs for commands. There should
@@ -255,7 +255,7 @@ class __AcnetdProtocol(asyncio.Protocol):
     async def xact(self, buf):
         ack_fut = asyncio.get_event_loop().create_future()
         await self.qCmd.put(ack_fut)
-        if self.transport is not None:
+        if not (self.transport is None):
             self.transport.write(buf)
             return _decode_ack(await ack_fut)
         else:
@@ -282,7 +282,7 @@ one indirectly through `acsys.run_client()`.
         self.protocol = None
 
     def __del__(self):
-        if self.protocol is not None:
+        if not (self.protocol is None):
             self.protocol.end()
 
     # Convert rad50 value to a string
@@ -338,12 +338,12 @@ one indirectly through `acsys.run_client()`.
         return (second_bit << 16) | first_bit
 
     async def _xact(self, buf):
-        if self.protocol is not None:
+        if not (self.protocol is None):
             while True:
                 try:
                     return await self.protocol.xact(buf)
                 except acsys.status.Status as sts:
-                    if sts != ACNET_DISCONNECTED or self.protocol is None:
+                    if sts != ACNET_DISCONNECTED or (self.protocol is None):
                         raise
 
                 # We got an ACNET_DISCONNECTED. Try to reconnect.
@@ -614,7 +614,7 @@ isn't an integer, ValueError is raised.
             while not done:
                 snd, sts, msg = await rpy_q.get()
                 if not sts.isFatal:
-                    if proto is not None and len(msg) > 0:
+                    if (not proto is None) and len(msg) > 0:
                         msg = proto.unmarshal_reply(iter(msg))
                     yield (snd, sts, msg)
                 else:
@@ -657,7 +657,7 @@ async def _create_socket():
 
 async def __client_main(main):
     proto = await _create_socket()
-    if proto is not None:
+    if not (proto is None):
         con = Connection()
         try:
             await con._connect(proto)
