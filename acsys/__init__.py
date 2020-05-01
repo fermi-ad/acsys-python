@@ -232,7 +232,8 @@ class __AcnetdProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc):
         self.end()
-        _log.warning('lost connection with ACSys')
+        if not (exc is None):
+            _log.warning('lost connection with ACSys')
 
         # Loop through all active requests and send a message
         # indicating the request is done.
