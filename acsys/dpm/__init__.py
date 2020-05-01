@@ -1,4 +1,8 @@
+import logging
 import acsys.dpm.dpm_protocol
+from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request)
+
+_log = logging.getLogger('asyncio')
 
 class DPM():
     def __init__(self, con, node):
@@ -20,11 +24,11 @@ class DPMContext():
         self.dpm = DPM(con, dpm_node)
 
     async def __aenter__(self):
-        print('entering DPM context')
+        _log.debug('entering DPM context')
         await self.dpm._connect()
         return self.dpm
 
     async def __aexit__(self, exc_type, exc, tb):
-        print('exiting DPM context')
+        _log.debug('exiting DPM context')
         await self.dpm._shutdown()
         return False
