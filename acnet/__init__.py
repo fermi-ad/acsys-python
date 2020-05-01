@@ -102,7 +102,6 @@ import logging
 import array
 import socket
 import struct
-from collections import deque
 import acnet.status
 
 from acnet.status import ACNET_DISCONNECTED
