@@ -1,5 +1,5 @@
 class Status(Exception):
-    """An ACNET status type."""
+    """An ACSys status type."""
 
     def __init__(self, val):
         """Creates a status value which is initialized with the supplied

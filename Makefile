@@ -1,6 +1,6 @@
-acnet.tgz : LICENSE README.md setup.py acnet/*py
+acsys.tgz : LICENSE README.md setup.py acsys/*py
 	tar czf $@ $^
 
 clean ::
 	find . -name \\*~ -delete
-	rm -rf acnet.tgz __pycache__
+	rm -rf acsys.tgz __pycache__
