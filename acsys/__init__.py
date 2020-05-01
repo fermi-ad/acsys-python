@@ -1,13 +1,13 @@
-"""This module provides access to the ACNET Control System via the
+"""This module provides access to the ACSys Control System via the
 `acnetd` daemon (acnetd), allowing Python scripts to communicate with
-ACNET services and resources.
+ACSys services and resources.
 
 This package targets Python3 and uses the async/await features of the
 language to allow concurrent access.
 
 To use this library, your main function should be marked `async` and
-take a single parameter which will be the ACNET Connection object.
-Your function should get passed to `acnet.run_client()`.
+take a single parameter which will be the ACSys Connection object.
+Your function should get passed to `acsys.run_client()`.
 
 This library writes to the 'asyncio' logger. Your script can configure
 the logger as it sees fit.
@@ -15,34 +15,34 @@ the logger as it sees fit.
 
 EXAMPLE #1: Specifying your script's starting function.
 
-This simple example displays the ACNET handle that is assigned to the
-script when it connects to ACNET. It shows how to register a starting
+This simple example displays the ACSys handle that is assigned to the
+script when it connects to ACSys. It shows how to register a starting
 function and shows how it receives a Connection object you can use.
 
-    import acnet
+    import acsys
 
     async def main(con):
         print(f'assigned handle: {con.handle}')
 
-    acnet.run_client(main)
+    acsys.run_client(main)
 
 Your function can create as many asynchronous tasks as it wants.
 However, when the primary function returns, all other tasks will be
 stopped and your script will continue execution after the
-`acnet.run_client()` call.
+`acsys.run_client()` call.
 
-The Connection object provides a low-level API to ACNET. Most Python
+The Connection object provides a low-level API to ACSys. Most Python
 libraries will take this object and wrap an API around it when
-supporting a popular ACNET service (e.g. DPM, LOOKUP, etc.)
+supporting a popular ACSys service (e.g. DPM, LOOKUP, etc.)
 
 
 EXAMPLE #2: Using Connection's low-level API to do node/name
             translations.
 
 This example shows how to translate node names to and from node
-addresses using the ACNET service with which the script is associated.
+addresses using the ACSys service with which the script is associated.
 
-    import acnet
+    import acsys
 
     async def my_client(con):
         # Look-up address of node CENTRA.
@@ -56,33 +56,33 @@ addresses using the ACNET service with which the script is associated.
         name = await con.get_name(addr)
         print(f'node {addr} has name {name}')
 
-    acnet.run_client(my_client)
+    acsys.run_client(my_client)
 
 
 EXAMPLE #3: Making a request for a single reply.
 
-This snippet shows how a request is made to another ACNET task.
+This snippet shows how a request is made to another ACSys task.
 
-    import acnet
+    import acsys
 
     async def my_client(con):
 
-        # Send an ACNET "ping" message. This message is supported by
-        # the ACNET task on every node.
+        # Send an ACSys "ping" message. This message is supported by
+        # the ACSys task on every node.
 
         snd, sts, msg = await con.request_reply('ACNET@CENTRA', b'\x00\x00')
         snd = await con.get_name(snd)
         print(f'reply from {snd}: status={str(sts)}, msg={msg}')
 
-    acnet.run_client(my_client)
+    acsys.run_client(my_client)
 
 
 EXAMPLE #4: Making simultaneous requests
 
-This snippet looks up the addresses of three ACNET nodes simultaneously.
+This snippet looks up the addresses of three ACSys nodes simultaneously.
 
     import asyncio
-    import acnet
+    import acsys
 
     async def my_client(con):
         results = await asyncio.gather(
@@ -94,7 +94,7 @@ This snippet looks up the addresses of three ACNET nodes simultaneously.
         for ii in results:
             print(ii)
 
-    acnet.run_client(my_client)
+    acsys.run_client(my_client)
 """
 
 import asyncio
@@ -102,9 +102,9 @@ import logging
 import array
 import socket
 import struct
-import acnet.status
+import acsys.status
 
-from acnet.status import ACNET_DISCONNECTED
+from acsys.status import ACNET_DISCONNECTED
 
 _log = logging.getLogger('asyncio')
 
@@ -188,11 +188,11 @@ class __AcnetdProtocol(asyncio.Protocol):
             if pkt_type == 2:
                 self.qCmd.get_nowait().set_result(bytearray(pkt))
 
-            # Type 3 packets are ACNET reply traffic.
+            # Type 3 packets are ACSys reply traffic.
 
             elif pkt_type == 3:
 
-                # Split out the interesting fields of the ACNET header.
+                # Split out the interesting fields of the ACSys header.
 
                 (flg, sts, t, n, reqid) = struct.unpack_from('<HhBB8xH', pkt,
                                                              offset=2)
@@ -228,11 +228,11 @@ class __AcnetdProtocol(asyncio.Protocol):
     def connection_made(self, transport):
         self.transport = transport
         self.transport.write(b'RAW\r\n\r\n')
-        _log.debug('connected to ACNET')
+        _log.debug('connected to ACSys')
 
     def connection_lost(self, exc):
         self.end()
-        _log.warning('lost connection with ACNET')
+        _log.warning('lost connection with ACSys')
 
         # Loop through all active requests and send a message
         # indicating the request is done.
@@ -250,7 +250,7 @@ class __AcnetdProtocol(asyncio.Protocol):
             self.qCmd.get_nowait().set_result(msg)
 
     def error_received(self, exc):
-        _log.error('ACNET socket error', exc_info=True)
+        _log.error('ACSys socket error', exc_info=True)
 
     async def xact(self, buf):
         ack_fut = asyncio.get_event_loop().create_future()
@@ -267,7 +267,7 @@ class __AcnetdProtocol(asyncio.Protocol):
 class Connection:
     """Manages and maintains a connection to the ACSys control system. In
 addition to methods that make requests, this object has methods that
-directly interact with the local ACNET service."""
+directly interact with the local ACSys service."""
 
     def __init__(self):
         """Constructor.
@@ -275,7 +275,7 @@ directly interact with the local ACNET service."""
 Creates a disconnected instance of a Connection object. This instance
 can't be properly used until further steps are completed.  SCRIPTS
 SHOULDN'T CREATE CONNECTIONS; they should receive a properly created
-one indirectly through `acnet.run_client()`.
+one indirectly through `acsys.run_client()`.
         """
         self._raw_handle = 0
         self.handle = None
@@ -342,7 +342,7 @@ one indirectly through `acnet.run_client()`.
             while True:
                 try:
                     return await self.protocol.xact(buf)
-                except acnet.status.Status as sts:
+                except acsys.status.Status as sts:
                     if sts != ACNET_DISCONNECTED or self.protocol is None:
                         raise
 
@@ -351,7 +351,7 @@ one indirectly through `acnet.run_client()`.
                 self.protocol = None
                 while self.protocol is None:
                     await asyncio.sleep(2)
-                    _log.info('retrying connection to ACNET')
+                    _log.info('retrying connection to ACSys')
                     proto = await _create_socket()
                     try:
                         await self._connect(proto)
@@ -388,7 +388,7 @@ one indirectly through `acnet.run_client()`.
         # other clients from using the Connection until we register
         # and get a handle.
 
-        _log.debug('registering with ACNET')
+        _log.debug('registering with ACSys')
         buf = struct.pack('>I2H3IH', 18, 1, 1, self._raw_handle, 0, 0, 0)
         res = await proto.xact(buf)
         sts = status.Status(res[1])
@@ -399,14 +399,14 @@ one indirectly through `acnet.run_client()`.
             self.protocol = proto
             self._raw_handle = res[3]
             self.handle = Connection.__rtoa(res[3])
-            _log.info('connected to ACNET with handle %s', self.handle)
+            _log.info('connected to ACSys with handle %s', self.handle)
         else:
             raise sts
 
     async def get_name(self, addr):
         """Look-up node name.
 
-Returns the ACNET node name associated with the ACNET node address,
+Returns the ACSys node name associated with the ACSys node address,
 `addr`.
         """
         if isinstance(addr, int) and addr >= 0 and addr <= 0x10000:
@@ -426,7 +426,7 @@ Returns the ACNET node name associated with the ACNET node address,
     async def get_addr(self, name):
         """Look-up node address.
 
-Returns the ACNET trunk/node node address associated with the ACNET
+Returns the ACSys trunk/node node address associated with the ACSys
 node name, `name`.
         """
         if isinstance(name, str) and len(name) <= 6:
@@ -493,18 +493,18 @@ node name, `name`.
             raise ValueError('message must be a binary')
 
     async def request_reply(self, remtsk, message, *, proto=None, timeout=1000):
-        """Request a single reply from an ACNET task.
+        """Request a single reply from an ACSys task.
 
-This function sends a request to an ACNET task and returns a future
+This function sends a request to an ACSys task and returns a future
 which will be resolved with the reply. The reply is a 3-tuple where
 the first element is the trunk/node address of the sender, the second
-is the ACNET status of the request, and the third is the reply
+is the ACSys status of the request, and the third is the reply
 data.
 
-The ACNET status will always be good (i.e. success or warning);
+The ACSys status will always be good (i.e. success or warning);
 receiving a fatal status results in the future throwing an exception.
 
-'remtsk' is a string representing the remote ACNET task in the format
+'remtsk' is a string representing the remote ACSys task in the format
 "TASKNAME@NODENAME".
 
 'message' is either a bytes type, or a type that's an acceptable value
@@ -557,19 +557,19 @@ isn't an integer, ValueError is raised.
             return (replies[0][1], replies[0][2], replies[0][3])
 
     async def request_stream(self, remtsk, message, *, proto=None, timeout=1000):
-        """Request a stream of replies from an ACNET task.
+        """Request a stream of replies from an ACSys task.
 
-This function sends a request to an ACNET task and returns an async
+This function sends a request to an ACSys task and returns an async
 generator which returns the stream of replies. Each reply is a 3-tuple
 where the first element is the trunk/node address of the sender, the
-second is the ACNET status of the request, and the third is the reply
+second is the ACSys status of the request, and the third is the reply
 data.
 
-The ACNET status in each reply will always be good (i.e. success or
+The ACSys status in each reply will always be good (i.e. success or
 warning); receiving a fatal status results in the generator throwing
 an exception.
 
-'remtsk' is a string representing the remote ACNET task in the format
+'remtsk' is a string representing the remote ACSys task in the format
 "TASKNAME@NODENAME".
 
 'message' is either a bytes type, or a type that's an acceptable value
@@ -624,20 +624,20 @@ isn't an integer, ValueError is raised.
             await self._cancel(reqid)
 
     async def ping(self, node):
-        """Pings an ACNET node.
+        """Pings an ACSys node.
 
-        Uses the Level2 protocol to perform an ACNET ping
+        Uses the Level2 protocol to perform an ACSys ping
         request. Returns True if the node responded or False if it
         didn't. A node is given 1/4 second to respond. If the
-        Connection has problems, this method will raise an ACNET
+        Connection has problems, this method will raise an ACSys
         Status code.
         """
         node = await self._to_nodename(node)
         try:
             await self.request_reply('ACNET@' + node, b'\x00\x00')
             return True
-        except acnet.status.Status as e:
-            if e == acnet.status.ACNET_REQTMO:
+        except acsys.status.Status as e:
+            if e == acsys.status.ACNET_REQTMO:
                 return False
             else:
                 raise e
@@ -646,11 +646,11 @@ async def _create_socket():
     try:
         s = socket.create_connection(('acsys-proxy.fnal.gov', 6802), 0.25)
     except socket.timeout:
-        _log.warning('timeout connecting to ACNET')
+        _log.warning('timeout connecting to ACSys')
         return None
     else:
         loop = asyncio.get_event_loop()
-        _log.info('creating ACNET transport')
+        _log.info('creating ACSys transport')
         _, proto = await loop.create_connection(lambda: __AcnetdProtocol(),
                                                 sock=s)
         return proto
@@ -665,11 +665,11 @@ async def __client_main(main):
         finally:
             del con
     else:
-        _log.error('*** unable to connect to ACNET')
+        _log.error('*** unable to connect to ACSys')
         raise ACNET_DISCONNECTED
 
 def run_client(main):
-    """Starts an asynchronous session for ACNET clients. `main` is an
+    """Starts an asynchronous session for ACSys clients. `main` is an
 async function which will receive a fully initialized Connection
 object. When 'main' resolves, this function will return.
     """
