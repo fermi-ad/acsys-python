@@ -86,6 +86,43 @@ def unmarshal_reply(ii):
     else:
         return msg
 
+async def find_dpm(con, *, node=None):
+    """Use Service Discovery to find an available DPM.
+
+    Multicasts a discovery message to find the next available DPM. The first
+    responder's node name is returned. If no DPMs are running or an error
+    occurred while querying, None is returned.
+    """
+
+    task = 'DPMD@' + (node or 'MCAST')
+    msg = ServiceDiscovery_request()
+    try:
+        replier, _, _ = await con.request_reply(task, msg, timeout=150,
+                                                proto=dpm_protocol)
+        return (await con.get_name(replier))
+    except acsys.status.Status as e:
+        if e != acsys.status.ACNET_UTIME:
+            raise
+        else:
+            return None
+
+async def available_dpms(con):
+    """Find active DPMs.
+
+    This function returns a list of available DPM nodes.
+    """
+    result = []
+    msg = ServiceDiscovery_request()
+
+    gen = con.request_stream('DPMD@MCAST', msg, proto=dpm_protocol, timeout=150)
+    try:
+        async for replier, _, _ in gen:
+            result.append(await con.get_name(replier))
+    except acsys.status.Status as e:
+        if e != acsys.status.ACNET_UTIME:
+            raise
+    return result
+
 class DPM():
     def __init__(self, con, node):
         self.desired_node = node or 'MCAST'
@@ -100,16 +137,13 @@ class DPM():
         return self.gen
 
     async def _find_dpm(self):
-        task = 'DPMD@' + self.desired_node
-        msg = ServiceDiscovery_request()
-        try:
-            replier, _, _ = await self.con.request_reply(task, msg,
-                                                         proto=dpm_protocol)
-            self.dpm_task = 'DPMD@' + (await self.con.get_name(replier))
+        dpm = await find_dpm(self.con, node=self.desired_node)
+
+        if not (dpm is None):
+            self.dpm_task = 'DPMD@' + dpm
             _log.info('using DPM task: %s', self.dpm_task)
-        except:
+        else:
             self.dpm_task = None
-            raise
 
     async def _connect(self):
         await self._find_dpm()
