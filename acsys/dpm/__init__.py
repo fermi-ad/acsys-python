@@ -105,6 +105,11 @@ error occurred while querying, None is returned.
                                              proto=dpm_protocol)
         return (await con.get_name(replier))
     except acsys.status.Status as e:
+        # An ACNET UTIME status is what we receive when no replies
+        # have been received in 150ms. This is a valid status (i.e. no
+        # DPMs are running), so we consume it and return 'None'.
+        # Other fatal errors percolate up.
+
         if e != acsys.status.ACNET_UTIME:
             raise
         else:
@@ -118,12 +123,16 @@ This function returns a list of available DPM nodes.
     """
     result = []
     msg = ServiceDiscovery_request()
-
     gen = con.request_stream('DPMD@MCAST', msg, proto=dpm_protocol, timeout=150)
     try:
         async for replier, _ in gen:
             result.append(await con.get_name(replier))
     except acsys.status.Status as e:
+        # An ACNET UTIME status is what we receive when no replies
+        # have been received in 150ms. This is a valid status (i.e.
+        # all DPMs have already responded), so we consume it. Other
+        # fatal errors percolate up.
+
         if e != acsys.status.ACNET_UTIME:
             raise
     return result

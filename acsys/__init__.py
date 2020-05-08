@@ -468,11 +468,18 @@ node name, `name`.
             raise ValueError('too many @ characters')
 
     async def _mk_req(self, remtsk, message, mult, proto, timeout):
+        # If a protocol module name was provided, verify the message
+        # object has a '.marshal()' method. If it does, use it to
+        # create a bytearray.
+
         if proto:
             if hasattr(message, 'marshal'):
                 message = bytearray(message.marshal())
             else:
                 raise ValueError('message wasn''t created by the protocol compiler')
+
+        # Make sure the message is some sort of binary and the timeout
+        # is an integer.
 
         if isinstance(message, (bytes, bytearray)) and isinstance(timeout, int):
             task, node = await self._split_taskname(remtsk)
@@ -482,7 +489,9 @@ node name, `name`.
             res = await self._xact(buf)
             sts = status.Status(res[1])
 
-            # A good reply is a tuple with 4 elements.
+            # A good reply is a tuple with 3 elements. The last
+            # element will be the request ID, which is what we return
+            # to the caller.
 
             if sts.isSuccess and len(res) == 3:
                 return res[2]
