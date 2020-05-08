@@ -674,4 +674,15 @@ def run_client(main):
 async function which will receive a fully initialized Connection
 object. When 'main' resolves, this function will return.
     """
-    asyncio.get_event_loop().run_until_complete(__client_main(main))
+    loop = asyncio.get_event_loop()
+    loop.set_debug(True)
+    client_fut = asyncio.Task(__client_main(main))
+    try:
+        loop.run_until_complete(client_fut)
+    except:
+        client_fut.cancel()
+        try:
+            loop.run_until_complete(client_fut)
+        except:
+            pass
+        raise
