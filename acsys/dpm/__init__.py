@@ -97,8 +97,8 @@ async def find_dpm(con, *, node=None):
     task = 'DPMD@' + (node or 'MCAST')
     msg = ServiceDiscovery_request()
     try:
-        replier, _, _ = await con.request_reply(task, msg, timeout=150,
-                                                proto=dpm_protocol)
+        replier, _ = await con.request_reply(task, msg, timeout=150,
+                                             proto=dpm_protocol)
         return (await con.get_name(replier))
     except acsys.status.Status as e:
         if e != acsys.status.ACNET_UTIME:
@@ -116,7 +116,7 @@ async def available_dpms(con):
 
     gen = con.request_stream('DPMD@MCAST', msg, proto=dpm_protocol, timeout=150)
     try:
-        async for replier, _, _ in gen:
+        async for replier, _ in gen:
             result.append(await con.get_name(replier))
     except acsys.status.Status as e:
         if e != acsys.status.ACNET_UTIME:
@@ -152,7 +152,7 @@ class DPM():
 
         gen = self.con.request_stream(self.dpm_task, OpenList_request(),
                                       proto=acsys.dpm)
-        _, _, msg = await gen.asend(None)
+        _, msg = await gen.asend(None)
         _log.info('DPM returned list id %d', msg.list_id)
 
         # Update object state.
@@ -210,8 +210,8 @@ class DPM():
 
                     _log.debug('adding tag:%d, drf:%s to list:%d', tag, drf,
                                msg.list_id)
-                    _, _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                                             proto=dpm_protocol)
+                    _, msg = await self.con.request_reply(self.dpm_task, msg,
+                                                          proto=dpm_protocol)
                     sts = acsys.status.Status(msg.status)
 
                     if sts.isFatal:
@@ -252,8 +252,8 @@ class DPM():
 
             async with self._dev_list_sem:
                 _log.debug('removing tag:%d from list:%d', tag, msg.list_id)
-                _, _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                                         proto=dpm_protocol)
+                _, msg = await self.con.request_reply(self.dpm_task, msg,
+                                                      proto=dpm_protocol)
                 sts = acsys.status.Status(msg.status)
 
                 if sts.isFatal:
@@ -282,8 +282,8 @@ class DPM():
 
         async with self._dev_list_sem:
             _log.debug('starting list %d', msg.list_id)
-            _, _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                                     proto=dpm_protocol)
+            _, msg = await self.con.request_reply(self.dpm_task, msg,
+                                                  proto=dpm_protocol)
             sts = acsys.status.Status(msg.status)
 
             if sts.isFatal:
@@ -306,8 +306,8 @@ class DPM():
 
         async with self._dev_list_sem:
             _log.debug('stopping list %d', msg.list_id)
-            _, _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                                     proto=dpm_protocol)
+            _, msg = await self.con.request_reply(self.dpm_task, msg,
+                                                  proto=dpm_protocol)
             sts = acsys.status.Status(msg.status)
 
             if sts.isFatal:
