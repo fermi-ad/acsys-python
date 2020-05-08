@@ -70,9 +70,9 @@ This snippet shows how a request is made to another ACSys task.
         # Send an ACSys "ping" message. This message is supported by
         # the ACSys task on every node.
 
-        snd, sts, msg = await con.request_reply('ACNET@CENTRA', b'\x00\x00')
+        snd, msg = await con.request_reply('ACNET@CENTRA', b'\\x00\\x00')
         snd = await con.get_name(snd)
-        print(f'reply from {snd}: status={str(sts)}, msg={msg}')
+        print(f'reply from {snd}: {msg}')
 
     acsys.run_client(my_client)
 
@@ -497,10 +497,9 @@ node name, `name`.
         """Request a single reply from an ACSys task.
 
 This function sends a request to an ACSys task and returns a future
-which will be resolved with the reply. The reply is a 3-tuple where
-the first element is the trunk/node address of the sender, the second
-is the ACSys status of the request, and the third is the reply
-data.
+which will be resolved with the reply. The reply is a 2-tuple where
+the first element is the trunk/node address of the sender and the
+second is the reply data.
 
 The ACSys status will always be good (i.e. success or warning);
 receiving a fatal status results in the future throwing an exception.
@@ -539,8 +538,8 @@ isn't an integer, ValueError is raised.
             snd, sts, data = reply
             if not sts.isFatal:
                 if proto:
-                    reply = (snd, sts, proto.unmarshal_reply(iter(data)))
-                rpy_fut.set_result(reply)
+                    data = proto.unmarshal_reply(iter(data))
+                rpy_fut.set_result((snd, data))
             else:
                 rpy_fut.set_exception(sts)
 
@@ -561,10 +560,9 @@ isn't an integer, ValueError is raised.
         """Request a stream of replies from an ACSys task.
 
 This function sends a request to an ACSys task and returns an async
-generator which returns the stream of replies. Each reply is a 3-tuple
-where the first element is the trunk/node address of the sender, the
-second is the ACSys status of the request, and the third is the reply
-data.
+generator which returns the stream of replies. Each reply is a 2-tuple
+where the first element is the trunk/node address of the sender and
+the second is the reply data.
 
 The ACSys status in each reply will always be good (i.e. success or
 warning); receiving a fatal status results in the generator throwing
@@ -617,7 +615,7 @@ isn't an integer, ValueError is raised.
                 if not sts.isFatal:
                     if (not proto is None) and len(msg) > 0:
                         msg = proto.unmarshal_reply(iter(msg))
-                    yield (snd, sts, msg)
+                    yield (snd, msg)
                 else:
                     raise sts
         finally:
