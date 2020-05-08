@@ -1,9 +1,6 @@
 """This module provides access to the ACSys Control System via the
-`acnetd` daemon (acnetd), allowing Python scripts to communicate with
-ACSys services and resources.
-
-This package targets Python3 and uses the async/await features of the
-language to allow concurrent access.
+`acnetd` daemon, allowing Python scripts to communicate with ACSys
+services and use ACSys resources.
 
 To use this library, your main function should be marked `async` and
 take a single parameter which will be the ACSys Connection object.
@@ -95,6 +92,7 @@ This snippet looks up the addresses of three ACSys nodes simultaneously.
             print(ii)
 
     acsys.run_client(my_client)
+
 """
 
 import asyncio
@@ -520,6 +518,7 @@ will be raised.
 
 If the message is in an incorrect format or the timeout parameter
 isn't an integer, ValueError is raised.
+
         """
         reqid = await self._mk_req(remtsk, message, 0, proto, timeout)
 
@@ -584,6 +583,7 @@ will be raised.
 
 If the message is in an incorrect format or the timeout parameter
 isn't an integer, ValueError is raised.
+
         """
         try:
             reqid = await self._mk_req(remtsk, message, 1, proto, timeout)
@@ -625,11 +625,10 @@ isn't an integer, ValueError is raised.
     async def ping(self, node):
         """Pings an ACSys node.
 
-        Uses the Level2 protocol to perform an ACSys ping
-        request. Returns True if the node responded or False if it
-        didn't. A node is given 1/4 second to respond. If the
-        Connection has problems, this method will raise an ACSys
-        Status code.
+Uses the Level2 protocol to perform an ACSys ping request. Returns
+True if the node responded or False if it didn't. A node is given 1/4
+second to respond. If the Connection has problems, this method will
+raise an ACSys Status code.
         """
         node = await self._to_nodename(node)
         try:
@@ -668,9 +667,11 @@ async def __client_main(main):
         raise ACNET_DISCONNECTED
 
 def run_client(main):
-    """Starts an asynchronous session for ACSys clients. `main` is an
-async function which will receive a fully initialized Connection
-object. When 'main' resolves, this function will return.
+    """Starts an asynchronous session for ACSys clients.
+
+This function starts up an ACSys session. `main` is an async function
+which will receive a fully initialized Connection object. When 'main'
+resolves, this function will return.
     """
     loop = asyncio.get_event_loop()
     loop.set_debug(True)
