@@ -1,9 +1,6 @@
 """This module provides access to the ACSys Control System via the
-`acnetd` daemon (acnetd), allowing Python scripts to communicate with
-ACSys services and resources.
-
-This package targets Python3 and uses the async/await features of the
-language to allow concurrent access.
+`acnetd` daemon, allowing Python scripts to communicate with ACSys
+services and use ACSys resources.
 
 To use this library, your main function should be marked `async` and
 take a single parameter which will be the ACSys Connection object.
@@ -70,9 +67,9 @@ This snippet shows how a request is made to another ACSys task.
         # Send an ACSys "ping" message. This message is supported by
         # the ACSys task on every node.
 
-        snd, sts, msg = await con.request_reply('ACNET@CENTRA', b'\x00\x00')
+        snd, msg = await con.request_reply('ACNET@CENTRA', b'\\x00\\x00')
         snd = await con.get_name(snd)
-        print(f'reply from {snd}: status={str(sts)}, msg={msg}')
+        print(f'reply from {snd}: {msg}')
 
     acsys.run_client(my_client)
 
@@ -95,6 +92,7 @@ This snippet looks up the addresses of three ACSys nodes simultaneously.
             print(ii)
 
     acsys.run_client(my_client)
+
 """
 
 import asyncio
@@ -178,7 +176,7 @@ class __AcnetdProtocol(asyncio.Protocol):
 
         pkt = self._get_packet()
 
-        while pkt is not None:
+        while not (pkt is None):
             pkt_type = pkt[0] * 256 + pkt[1]
 
             # Type 2 packets are ACKs for commands. There should
@@ -232,7 +230,8 @@ class __AcnetdProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc):
         self.end()
-        _log.warning('lost connection with ACSys')
+        if not (exc is None):
+            _log.warning('lost connection with ACSys')
 
         # Loop through all active requests and send a message
         # indicating the request is done.
@@ -255,7 +254,7 @@ class __AcnetdProtocol(asyncio.Protocol):
     async def xact(self, buf):
         ack_fut = asyncio.get_event_loop().create_future()
         await self.qCmd.put(ack_fut)
-        if self.transport is not None:
+        if not (self.transport is None):
             self.transport.write(buf)
             return _decode_ack(await ack_fut)
         else:
@@ -282,7 +281,7 @@ one indirectly through `acsys.run_client()`.
         self.protocol = None
 
     def __del__(self):
-        if self.protocol is not None:
+        if not (self.protocol is None):
             self.protocol.end()
 
     # Convert rad50 value to a string
@@ -338,12 +337,12 @@ one indirectly through `acsys.run_client()`.
         return (second_bit << 16) | first_bit
 
     async def _xact(self, buf):
-        if self.protocol is not None:
+        if not (self.protocol is None):
             while True:
                 try:
                     return await self.protocol.xact(buf)
                 except acsys.status.Status as sts:
-                    if sts != ACNET_DISCONNECTED or self.protocol is None:
+                    if sts != ACNET_DISCONNECTED or (self.protocol is None):
                         raise
 
                 # We got an ACNET_DISCONNECTED. Try to reconnect.
@@ -469,11 +468,18 @@ node name, `name`.
             raise ValueError('too many @ characters')
 
     async def _mk_req(self, remtsk, message, mult, proto, timeout):
+        # If a protocol module name was provided, verify the message
+        # object has a '.marshal()' method. If it does, use it to
+        # create a bytearray.
+
         if proto:
             if hasattr(message, 'marshal'):
                 message = bytearray(message.marshal())
             else:
                 raise ValueError('message wasn''t created by the protocol compiler')
+
+        # Make sure the message is some sort of binary and the timeout
+        # is an integer.
 
         if isinstance(message, (bytes, bytearray)) and isinstance(timeout, int):
             task, node = await self._split_taskname(remtsk)
@@ -483,7 +489,9 @@ node name, `name`.
             res = await self._xact(buf)
             sts = status.Status(res[1])
 
-            # A good reply is a tuple with 4 elements.
+            # A good reply is a tuple with 3 elements. The last
+            # element will be the request ID, which is what we return
+            # to the caller.
 
             if sts.isSuccess and len(res) == 3:
                 return res[2]
@@ -496,10 +504,9 @@ node name, `name`.
         """Request a single reply from an ACSys task.
 
 This function sends a request to an ACSys task and returns a future
-which will be resolved with the reply. The reply is a 3-tuple where
-the first element is the trunk/node address of the sender, the second
-is the ACSys status of the request, and the third is the reply
-data.
+which will be resolved with the reply. The reply is a 2-tuple where
+the first element is the trunk/node address of the sender and the
+second is the reply data.
 
 The ACSys status will always be good (i.e. success or warning);
 receiving a fatal status results in the future throwing an exception.
@@ -520,6 +527,7 @@ will be raised.
 
 If the message is in an incorrect format or the timeout parameter
 isn't an integer, ValueError is raised.
+
         """
         reqid = await self._mk_req(remtsk, message, 0, proto, timeout)
 
@@ -538,8 +546,8 @@ isn't an integer, ValueError is raised.
             snd, sts, data = reply
             if not sts.isFatal:
                 if proto:
-                    reply = (snd, sts, proto.unmarshal_reply(iter(data)))
-                rpy_fut.set_result(reply)
+                    data = proto.unmarshal_reply(iter(data))
+                rpy_fut.set_result((snd, data))
             else:
                 rpy_fut.set_exception(sts)
 
@@ -560,10 +568,9 @@ isn't an integer, ValueError is raised.
         """Request a stream of replies from an ACSys task.
 
 This function sends a request to an ACSys task and returns an async
-generator which returns the stream of replies. Each reply is a 3-tuple
-where the first element is the trunk/node address of the sender, the
-second is the ACSys status of the request, and the third is the reply
-data.
+generator which returns the stream of replies. Each reply is a 2-tuple
+where the first element is the trunk/node address of the sender and
+the second is the reply data.
 
 The ACSys status in each reply will always be good (i.e. success or
 warning); receiving a fatal status results in the generator throwing
@@ -585,6 +592,7 @@ will be raised.
 
 If the message is in an incorrect format or the timeout parameter
 isn't an integer, ValueError is raised.
+
         """
         try:
             reqid = await self._mk_req(remtsk, message, 1, proto, timeout)
@@ -614,9 +622,9 @@ isn't an integer, ValueError is raised.
             while not done:
                 snd, sts, msg = await rpy_q.get()
                 if not sts.isFatal:
-                    if proto is not None and len(msg) > 0:
+                    if (not proto is None) and len(msg) > 0:
                         msg = proto.unmarshal_reply(iter(msg))
-                    yield (snd, sts, msg)
+                    yield (snd, msg)
                 else:
                     raise sts
         finally:
@@ -626,11 +634,10 @@ isn't an integer, ValueError is raised.
     async def ping(self, node):
         """Pings an ACSys node.
 
-        Uses the Level2 protocol to perform an ACSys ping
-        request. Returns True if the node responded or False if it
-        didn't. A node is given 1/4 second to respond. If the
-        Connection has problems, this method will raise an ACSys
-        Status code.
+Uses the Level2 protocol to perform an ACSys ping request. Returns
+True if the node responded or False if it didn't. A node is given 1/4
+second to respond. If the Connection has problems, this method will
+raise an ACSys Status code.
         """
         node = await self._to_nodename(node)
         try:
@@ -650,14 +657,14 @@ async def _create_socket():
         return None
     else:
         loop = asyncio.get_event_loop()
-        _log.info('creating ACSys transport')
+        _log.debug('creating ACSys transport')
         _, proto = await loop.create_connection(lambda: __AcnetdProtocol(),
                                                 sock=s)
         return proto
 
 async def __client_main(main):
     proto = await _create_socket()
-    if proto is not None:
+    if not (proto is None):
         con = Connection()
         try:
             await con._connect(proto)
@@ -669,8 +676,21 @@ async def __client_main(main):
         raise ACNET_DISCONNECTED
 
 def run_client(main):
-    """Starts an asynchronous session for ACSys clients. `main` is an
-async function which will receive a fully initialized Connection
-object. When 'main' resolves, this function will return.
+    """Starts an asynchronous session for ACSys clients.
+
+This function starts up an ACSys session. `main` is an async function
+which will receive a fully initialized Connection object. When 'main'
+resolves, this function will return.
     """
-    asyncio.get_event_loop().run_until_complete(__client_main(main))
+    loop = asyncio.get_event_loop()
+    loop.set_debug(True)
+    client_fut = asyncio.Task(__client_main(main))
+    try:
+        loop.run_until_complete(client_fut)
+    except:
+        client_fut.cancel()
+        try:
+            loop.run_until_complete(client_fut)
+        except:
+            pass
+        raise
