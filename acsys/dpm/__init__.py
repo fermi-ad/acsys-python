@@ -1,3 +1,4 @@
+import datetime
 import asyncio
 import logging
 import acsys.dpm.dpm_protocol
@@ -6,6 +7,84 @@ from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     StartList_request, StopList_request)
 
 _log = logging.getLogger('asyncio')
+
+class ItemData:
+    """An object that holds a reading from a device.
+
+    DPM delivers device data using a stream of ItemData objects. The
+    'tag' field corresponds to the tag parameter used when the
+    '.add_entry()' method was used to add the device to the list.
+
+    The 'stamp' field is the timestamp when the data occurred.
+
+    The 'data' field is the requested data. The data will be of the
+    type asked in the corresponding DRF2 (specified in the call to the
+    '.add_entry()' method.) For instance, if .RAW was specified, the
+    'data' field will contain a bytearray(). Otherwise it will contain
+    a scaled, floating point value (or an array, if it's an array
+    device.)
+    """
+
+    def __init__(self, tag, stamp, cycle, data, micros=None):
+        self.tag = tag
+        self.stamp = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc) + \
+                     datetime.timedelta(seconds=stamp // 1000,
+                                        milliseconds=stamp % 1000)
+        self.data = data
+        self.cycle = cycle
+        if not micros is None:
+            self.micros = micros
+
+    def __str__(self):
+        guaranteed_fields = f'{{ tag: {self.tag}, stamp: {self.stamp}, data: {self.data}'
+        if hasattr(self, 'micros'):
+            return guaranteed_fields + f', micros: {self.micros}'
+        return guaranteed_fields + ' }'
+
+class ItemStatus:
+    """An object reporting status of an item in a DPM list.
+
+    If there was an error in a request, this object will be in the
+    stream instead of a ItemData object. The 'tag' field corresponds
+    to the tag parameter used in the call to the '.add_entry()' method.
+
+    The 'status' field describes the error that occurred with this
+    item.
+
+    If this message appears, there will never be an ItemData object
+    for the 'tag' until the error condition is fixed and the list
+    restarted.
+    """
+
+    def __init__(self, tag, status):
+        self.tag = tag
+        self.status = status
+
+    def __str__(self):
+        return f'{tag: {self.tag}, status: {self.status}}'
+
+# Since Python doesn't yet have `itertools` for async generators, we
+# kludge it by highjacking the unmarshal routine in our multiple reply
+# request. This function will be called for each incoming packet. We
+# first call the underlying protocol compiler routine to translate it
+# and then transform certain reply messages into `ItemData` and
+# `ItemStatus` types.
+
+def unmarshal_reply(ii):
+    msg = dpm_protocol.unmarshal_reply(ii)
+    if isinstance(msg, dpm_protocol.Status_reply):
+        return ItemStatus(msg.ref_id, acnet.status.Status(msg.status))
+    elif isinstance(msg, (dpm_protocol.AnalogAlarm_reply,
+                          dpm_protocol.BasicStatus_reply,
+                          dpm_protocol.DigitalAlarm_reply,
+                          dpm_protocol.Raw_reply,
+                          dpm_protocol.ScalarArray_reply,
+                          dpm_protocol.Scalar_reply,
+                          dpm_protocol.TextArray_reply,
+                          dpm_protocol.Text_reply)):
+        return ItemData(msg.ref_id, msg.timestamp, msg.cycle, msg.data)
+    else:
+        return msg
 
 class DPM():
     def __init__(self, con, node):
@@ -38,7 +117,7 @@ class DPM():
         # Send an OPEN LIST request to the DPM.
 
         gen = self.con.request_stream(self.dpm_task, OpenList_request(),
-                                      proto=dpm_protocol)
+                                      proto=acsys.dpm)
         _, _, msg = await gen.asend(None)
         _log.info('DPM returned list id %d', msg.list_id)
 
