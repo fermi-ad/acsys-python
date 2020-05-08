@@ -11,18 +11,18 @@ _log = logging.getLogger('asyncio')
 class ItemData:
     """An object that holds a reading from a device.
 
-    DPM delivers device data using a stream of ItemData objects. The
-    'tag' field corresponds to the tag parameter used when the
-    '.add_entry()' method was used to add the device to the list.
+DPM delivers device data using a stream of ItemData objects. The 'tag'
+field corresponds to the tag parameter used when the '.add_entry()'
+method was used to add the device to the list.
 
-    The 'stamp' field is the timestamp when the data occurred.
+The 'stamp' field is the timestamp when the data occurred.
 
-    The 'data' field is the requested data. The data will be of the
-    type asked in the corresponding DRF2 (specified in the call to the
-    '.add_entry()' method.) For instance, if .RAW was specified, the
-    'data' field will contain a bytearray(). Otherwise it will contain
-    a scaled, floating point value (or an array, if it's an array
-    device.)
+The 'data' field is the requested data. The data will be of the type
+asked in the corresponding DRF2 (specified in the call to the
+'.add_entry()' method.) For instance, if .RAW was specified, the
+'data' field will contain a bytearray(). Otherwise it will contain a
+scaled, floating point value (or an array, if it's an array device.)
+
     """
 
     def __init__(self, tag, stamp, cycle, data, micros=None):
@@ -44,16 +44,15 @@ class ItemData:
 class ItemStatus:
     """An object reporting status of an item in a DPM list.
 
-    If there was an error in a request, this object will be in the
-    stream instead of a ItemData object. The 'tag' field corresponds
-    to the tag parameter used in the call to the '.add_entry()' method.
+If there was an error in a request, this object will be in the stream
+instead of a ItemData object. The 'tag' field corresponds to the tag
+parameter used in the call to the '.add_entry()' method.
 
-    The 'status' field describes the error that occurred with this
-    item.
+The 'status' field describes the error that occurred with this item.
 
-    If this message appears, there will never be an ItemData object
-    for the 'tag' until the error condition is fixed and the list
-    restarted.
+If this message appears, there will never be an ItemData object for
+the 'tag' until the error condition is fixed and the list restarted.
+
     """
 
     def __init__(self, tag, status):
@@ -71,6 +70,10 @@ class ItemStatus:
 # `ItemStatus` types.
 
 def unmarshal_reply(ii):
+    """This is a function that needs to be exported, but should be
+    considered private.
+
+    """
     msg = dpm_protocol.unmarshal_reply(ii)
     if isinstance(msg, dpm_protocol.Status_reply):
         return ItemStatus(msg.ref_id, acnet.status.Status(msg.status))
@@ -89,9 +92,10 @@ def unmarshal_reply(ii):
 async def find_dpm(con, *, node=None):
     """Use Service Discovery to find an available DPM.
 
-    Multicasts a discovery message to find the next available DPM. The first
-    responder's node name is returned. If no DPMs are running or an error
-    occurred while querying, None is returned.
+Multicasts a discovery message to find the next available DPM. The
+first responder's node name is returned. If no DPMs are running or an
+error occurred while querying, None is returned.
+
     """
 
     task = 'DPMD@' + (node or 'MCAST')
@@ -109,7 +113,8 @@ async def find_dpm(con, *, node=None):
 async def available_dpms(con):
     """Find active DPMs.
 
-    This function returns a list of available DPM nodes.
+This function returns a list of available DPM nodes.
+
     """
     result = []
     msg = ServiceDiscovery_request()
@@ -168,24 +173,24 @@ class DPM():
     async def add_entry(self, tag, drf):
         """Add an entry to the list of devices to be acquired.
 
-        This updates the list of device requests. The 'tag' parameter
-        is used to mark this request's device data. When the script
-        starts receiving ItemData objects, it can correlate the data
-        using the 'tag' field. The 'tag' must be an integer -- the
-        method will raise a ValueError if it's not.
+This updates the list of device requests. The 'tag' parameter is used
+to mark this request's device data. When the script starts receiving
+ItemData objects, it can correlate the data using the 'tag' field. The
+'tag' must be an integer -- the method will raise a ValueError if it's
+not.
 
-        The 'drf' parameter is a DRF2 string representing the data to
-        be read along with the sampling event. If it isn't a string,
-        ValueError will be raised.
+The 'drf' parameter is a DRF2 string representing the data to be read
+along with the sampling event. If it isn't a string, ValueError will
+be raised.
 
-        If this method is called with a tag that was previously used,
-        it replaces the previous request. If data is currently being
-        returned, it won't reflect the new entry until the 'start'
-        method is called.
+If this method is called with a tag that was previously used, it
+replaces the previous request. If data is currently being returned, it
+won't reflect the new entry until the 'start' method is called.
 
-        If simultaneous calls are made to this method and all are
-        using the same 'tag', which 'drf' string is ultimately
-        associated with the tag is non-deterministic.
+If simultaneous calls are made to this method and all are using the
+same 'tag', which 'drf' string is ultimately associated with the tag
+is non-deterministic.
+
         """
 
         # Make sure the tag parameter is an integer and the drf
@@ -229,13 +234,13 @@ class DPM():
     async def remove_entry(self, tag):
         """Removes an entry from the list of devices to be acquired.
 
-        This updates the list of device requests. The 'tag' parameter
-        is used to specify which request should be removed from the
-        list.  The 'tag' must be an integer -- the method will raise a
-        ValueError if it's not.
+This updates the list of device requests. The 'tag' parameter is used
+to specify which request should be removed from the list.  The 'tag'
+must be an integer -- the method will raise a ValueError if it's not.
 
-        Data associated with the 'tag' will continue to be returned
-        until the '.start()' method is called.
+Data associated with the 'tag' will continue to be returned until the
+'.start()' method is called.
+
         """
 
         # Make sure the tag parameter is an integer and the drf
@@ -269,11 +274,11 @@ class DPM():
     async def start(self):
         """Start/restart data acquisition using the current request list.
 
-        Calls to '.add_entry()' and '.remove_entry()' make changes to
-        the list of requests but don't actually affect data
-        acquisition until this method is called. This allows a script
-        to make major adjustments and then enable the changes all at
-        once.
+Calls to '.add_entry()' and '.remove_entry()' make changes to the list
+of requests but don't actually affect data acquisition until this
+method is called. This allows a script to make major adjustments and
+then enable the changes all at once.
+
         """
 
         msg = StartList_request()
@@ -292,12 +297,12 @@ class DPM():
     async def stop(self):
         """Stops data acquisition.
 
-        This method stops data acquisition. The list of requests is
-        unaffected so a call to '.start()' will restart the list.
+This method stops data acquisition. The list of requests is unaffected
+so a call to '.start()' will restart the list.
 
-        Due to the asynchronous nature of network communications,
-        after calling this method, a few readings may still get
-        delivered.
+Due to the asynchronous nature of network communications, after
+calling this method, a few readings may still get delivered.
+
         """
 
         msg = StopList_request()
