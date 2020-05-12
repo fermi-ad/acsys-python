@@ -265,6 +265,20 @@ is non-deterministic.
         else:
             raise ValueError('tag must be an integer')
 
+    async def add_entries(self, entries):
+        """Adds multiple entries.
+
+This is just a convenience function to add a list of tag/drf pairs to
+a DPM list. If any of the entries is badly formed, an exception will
+be raised and the state of DPM will be in a part state of success.
+
+A future version of the DPM protocol will make this method much more
+reliable while maintaining its speed.
+
+        """
+        for tag, drf in entries:
+            await self.add_entry(tag, drf)
+
     async def remove_entry(self, tag):
         """Removes an entry from the list of devices to be acquired.
 
