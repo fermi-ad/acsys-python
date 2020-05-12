@@ -266,7 +266,9 @@ class __AcnetdProtocol(asyncio.Protocol):
 class Connection:
     """Manages and maintains a connection to the ACSys control system. In
 addition to methods that make requests, this object has methods that
-directly interact with the local ACSys service."""
+directly interact with the local ACSys service.
+
+    """
 
     def __init__(self):
         """Constructor.
@@ -275,6 +277,7 @@ Creates a disconnected instance of a Connection object. This instance
 can't be properly used until further steps are completed.  SCRIPTS
 SHOULDN'T CREATE CONNECTIONS; they should receive a properly created
 one indirectly through `acsys.run_client()`.
+
         """
         self._raw_handle = 0
         self.handle = None
@@ -421,6 +424,7 @@ one indirectly through `acsys.run_client()`.
 
 Returns the ACSys node name associated with the ACSys node address,
 `addr`.
+
         """
         if isinstance(addr, int) and addr >= 0 and addr <= 0x10000:
             buf = struct.pack('>I2H2IH', 14, 1, 12, self._raw_handle, 0, addr)
@@ -441,6 +445,7 @@ Returns the ACSys node name associated with the ACSys node address,
 
 Returns the ACSys trunk/node node address associated with the ACSys
 node name, `name`.
+
         """
         if isinstance(name, str) and len(name) <= 6:
             buf = struct.pack('>I2H3I', 16, 1, 11, self._raw_handle, 0,
