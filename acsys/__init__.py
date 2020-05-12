@@ -402,6 +402,20 @@ one indirectly through `acsys.run_client()`.
         else:
             raise sts
 
+    @staticmethod
+    async def create():
+        proto = await _create_socket()
+        if not (proto is None):
+            con = Connection()
+            try:
+                await con._connect(proto)
+                return con
+            except:
+                del con
+        else:
+            _log.error('*** unable to connect to ACSys')
+            raise ACNET_DISCONNECTED
+
     async def get_name(self, addr):
         """Look-up node name.
 
@@ -663,17 +677,11 @@ async def _create_socket():
         return proto
 
 async def __client_main(main):
-    proto = await _create_socket()
-    if not (proto is None):
-        con = Connection()
-        try:
-            await con._connect(proto)
-            await main(con)
-        finally:
-            del con
-    else:
-        _log.error('*** unable to connect to ACSys')
-        raise ACNET_DISCONNECTED
+    con = await Connection.create()
+    try:
+        await main(con)
+    finally:
+        del con
 
 def run_client(main):
     """Starts an asynchronous session for ACSys clients.
