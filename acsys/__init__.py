@@ -347,18 +347,7 @@ one indirectly through `acsys.run_client()`.
                 except acsys.status.Status as sts:
                     if sts != ACNET_DISCONNECTED or (self.protocol is None):
                         raise
-
-                # We got an ACNET_DISCONNECTED. Try to reconnect.
-
                 self.protocol = None
-                while self.protocol is None:
-                    await asyncio.sleep(2)
-                    _log.info('retrying connection to ACSys')
-                    proto = await _create_socket()
-                    try:
-                        await self._connect(proto)
-                    except:
-                        pass
         else:
             raise ACNET_DISCONNECTED
 
