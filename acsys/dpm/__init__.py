@@ -4,7 +4,8 @@ import logging
 import acsys.dpm.dpm_protocol
 from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     AddToList_request, RemoveFromList_request,
-                                    StartList_request, StopList_request)
+                                    StartList_request, StopList_request,
+                                    ClearList_request)
 
 _log = logging.getLogger('asyncio')
 
@@ -178,6 +179,30 @@ class DPM():
         """Returns the DRF string associated with the 'tag'.
         """
         self._dev_list.get(tag)
+
+    async def clear_list(self):
+        """Clears all entries in the tag/drf dictionary.
+
+Clearing the list doesn't stop incoming replies. After clearing the
+list, either '.stop()' or '.start()' needs to be called.
+
+        """
+
+        msg = ClearList_request()
+        msg.list_id = self.list_id
+
+        async with self._dev_list_sem:
+            _log.debug('clearing list:%d', msg.list_id)
+            _, msg = await self.con.request_reply(self.dpm_task, msg,
+                                                  proto=dpm_protocol)
+            sts = acsys.status.Status(msg.status)
+
+            if sts.isFatal:
+                raise sts
+
+            # DPM has been updated so we can safely clear the dictionary.
+
+            self._dev_list = {}
 
     async def add_entry(self, tag, drf):
         """Add an entry to the list of devices to be acquired.
