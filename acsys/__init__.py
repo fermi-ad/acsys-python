@@ -270,6 +270,8 @@ directly interact with the local ACSys service.
 
     """
 
+    _rad50_chars = array.array('B', b' ABCDEFGHIJKLMNOPQRSTUVWXYZ$.%0123456789')
+
     def __init__(self):
         """Constructor.
 
@@ -292,7 +294,7 @@ one indirectly through `acsys.run_client()`.
     @staticmethod
     def __rtoa(r50):
         result = array.array('B', b'      ')
-        chars = array.array('B', b' ABCDEFGHIJKLMNOPQRSTUVWXYZ$.%0123456789')
+        chars = Connection._rad50_chars
 
         first_bit = r50 & 0xffff
         second_bit = (r50 >> 16) & 0xffff
