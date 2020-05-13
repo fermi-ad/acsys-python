@@ -266,7 +266,11 @@ class __AcnetdProtocol(asyncio.Protocol):
 class Connection:
     """Manages and maintains a connection to the ACSys control system. In
 addition to methods that make requests, this object has methods that
-directly interact with the local ACSys service."""
+directly interact with the local ACSys service.
+
+    """
+
+    _rad50_chars = array.array('B', b' ABCDEFGHIJKLMNOPQRSTUVWXYZ$.%0123456789')
 
     def __init__(self):
         """Constructor.
@@ -275,6 +279,7 @@ Creates a disconnected instance of a Connection object. This instance
 can't be properly used until further steps are completed.  SCRIPTS
 SHOULDN'T CREATE CONNECTIONS; they should receive a properly created
 one indirectly through `acsys.run_client()`.
+
         """
         self._raw_handle = 0
         self.handle = None
@@ -289,7 +294,7 @@ one indirectly through `acsys.run_client()`.
     @staticmethod
     def __rtoa(r50):
         result = array.array('B', b'      ')
-        chars = array.array('B', b' ABCDEFGHIJKLMNOPQRSTUVWXYZ$.%0123456789')
+        chars = Connection._rad50_chars
 
         first_bit = r50 & 0xffff
         second_bit = (r50 >> 16) & 0xffff
@@ -344,18 +349,7 @@ one indirectly through `acsys.run_client()`.
                 except acsys.status.Status as sts:
                     if sts != ACNET_DISCONNECTED or (self.protocol is None):
                         raise
-
-                # We got an ACNET_DISCONNECTED. Try to reconnect.
-
                 self.protocol = None
-                while self.protocol is None:
-                    await asyncio.sleep(2)
-                    _log.info('retrying connection to ACSys')
-                    proto = await _create_socket()
-                    try:
-                        await self._connect(proto)
-                    except:
-                        pass
         else:
             raise ACNET_DISCONNECTED
 
@@ -402,11 +396,26 @@ one indirectly through `acsys.run_client()`.
         else:
             raise sts
 
+    @staticmethod
+    async def create():
+        proto = await _create_socket()
+        if not (proto is None):
+            con = Connection()
+            try:
+                await con._connect(proto)
+                return con
+            except:
+                del con
+        else:
+            _log.error('*** unable to connect to ACSys')
+            raise ACNET_DISCONNECTED
+
     async def get_name(self, addr):
         """Look-up node name.
 
 Returns the ACSys node name associated with the ACSys node address,
 `addr`.
+
         """
         if isinstance(addr, int) and addr >= 0 and addr <= 0x10000:
             buf = struct.pack('>I2H2IH', 14, 1, 12, self._raw_handle, 0, addr)
@@ -427,6 +436,7 @@ Returns the ACSys node name associated with the ACSys node address,
 
 Returns the ACSys trunk/node node address associated with the ACSys
 node name, `name`.
+
         """
         if isinstance(name, str) and len(name) <= 6:
             buf = struct.pack('>I2H3I', 16, 1, 11, self._raw_handle, 0,
@@ -663,17 +673,11 @@ async def _create_socket():
         return proto
 
 async def __client_main(main):
-    proto = await _create_socket()
-    if not (proto is None):
-        con = Connection()
-        try:
-            await con._connect(proto)
-            await main(con)
-        finally:
-            del con
-    else:
-        _log.error('*** unable to connect to ACSys')
-        raise ACNET_DISCONNECTED
+    con = await Connection.create()
+    try:
+        await main(con)
+    finally:
+        del con
 
 def run_client(main):
     """Starts an asynchronous session for ACSys clients.

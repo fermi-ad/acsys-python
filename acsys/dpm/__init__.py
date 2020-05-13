@@ -4,7 +4,8 @@ import logging
 import acsys.dpm.dpm_protocol
 from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     AddToList_request, RemoveFromList_request,
-                                    StartList_request, StopList_request)
+                                    StartList_request, StopList_request,
+                                    ClearList_request)
 
 _log = logging.getLogger('asyncio')
 
@@ -179,6 +180,30 @@ class DPM():
         """
         self._dev_list.get(tag)
 
+    async def clear_list(self):
+        """Clears all entries in the tag/drf dictionary.
+
+Clearing the list doesn't stop incoming replies. After clearing the
+list, either '.stop()' or '.start()' needs to be called.
+
+        """
+
+        msg = ClearList_request()
+        msg.list_id = self.list_id
+
+        async with self._dev_list_sem:
+            _log.debug('clearing list:%d', msg.list_id)
+            _, msg = await self.con.request_reply(self.dpm_task, msg,
+                                                  proto=dpm_protocol)
+            sts = acsys.status.Status(msg.status)
+
+            if sts.isFatal:
+                raise sts
+
+            # DPM has been updated so we can safely clear the dictionary.
+
+            self._dev_list = {}
+
     async def add_entry(self, tag, drf):
         """Add an entry to the list of devices to be acquired.
 
@@ -239,6 +264,20 @@ is non-deterministic.
                 raise ValueError('drf must be a string')
         else:
             raise ValueError('tag must be an integer')
+
+    async def add_entries(self, entries):
+        """Adds multiple entries.
+
+This is just a convenience function to add a list of tag/drf pairs to
+a DPM list. If any of the entries is badly formed, an exception will
+be raised and the state of DPM will be in a part state of success.
+
+A future version of the DPM protocol will make this method much more
+reliable while maintaining its speed.
+
+        """
+        for tag, drf in entries:
+            await self.add_entry(tag, drf)
 
     async def remove_entry(self, tag):
         """Removes an entry from the list of devices to be acquired.
