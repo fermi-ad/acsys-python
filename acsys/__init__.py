@@ -453,6 +453,26 @@ node name, `name`.
         else:
             raise ValueError('name must be a string of no more than 6 characters')
 
+    async def get_local_node(self):
+        """Return the node name associated with this connection.
+
+Python scripts and web applications gain access to the control system
+through a pool of ACNET nodes. This method returns which node of the
+pool is being used for the connection.
+
+        """
+        buf = struct.pack('>I2H2I', 12, 1, 13, self._raw_handle, 0)
+        res = await self._xact(buf)
+        sts = status.Status(res[1])
+
+        # A good reply is a tuple with 4 elements.
+
+        if sts.isSuccess and len(res) == 4:
+            addr = res[2] * 256 + res[3]
+            return await self.get_name(addr)
+        else:
+            raise sts
+
     async def _to_trunknode(self, node):
         if isinstance(node, str):
             return await self.get_addr(node)
