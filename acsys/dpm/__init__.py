@@ -27,20 +27,18 @@ scaled, floating point value (or an array, if it's an array device.)
     """
 
     def __init__(self, tag, stamp, cycle, data, micros=None):
+        delta = datetime.timedelta(seconds=stamp // 1000,
+                                   microseconds=(stamp % 1000) * 1000 + \
+                                                (micros or 0))
+        tz = datetime.timezone.utc
+
         self.tag = tag
-        self.stamp = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc) + \
-                     datetime.timedelta(seconds=stamp // 1000,
-                                        milliseconds=stamp % 1000)
+        self.stamp = datetime.datetime(1970, 1, 1, tzinfo=tz) + delta
         self.data = data
         self.cycle = cycle
-        if not micros is None:
-            self.micros = micros
 
     def __str__(self):
-        guaranteed_fields = f'{{ tag: {self.tag}, stamp: {self.stamp}, data: {self.data}'
-        if hasattr(self, 'micros'):
-            return guaranteed_fields + f', micros: {self.micros}'
-        return guaranteed_fields + ' }'
+        return f'{ { tag: {self.tag}, stamp: {self.stamp}, data: {self.data} }'
 
 class ItemStatus:
     """An object reporting status of an item in a DPM list.
