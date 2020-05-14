@@ -1,11 +1,14 @@
 import datetime
 import asyncio
+import gssapi
 import logging
 import acsys.dpm.dpm_protocol
 from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     AddToList_request, RemoveFromList_request,
                                     StartList_request, StopList_request,
-                                    ClearList_request)
+                                    ClearList_request, RawSetting_struct,
+                                    TextSetting_struct, ScaledSetting_struct,
+                                    ApplySettings_request, Status_reply)
 
 _log = logging.getLogger('asyncio')
 
@@ -74,7 +77,7 @@ def unmarshal_reply(ii):
 
     """
     msg = dpm_protocol.unmarshal_reply(ii)
-    if isinstance(msg, dpm_protocol.Status_reply):
+    if isinstance(msg, Status_reply):
         return ItemStatus(msg.ref_id, acnet.status.Status(msg.status))
     elif isinstance(msg, (dpm_protocol.AnalogAlarm_reply,
                           dpm_protocol.BasicStatus_reply,
@@ -136,7 +139,7 @@ This function returns a list of available DPM nodes.
             raise
     return result
 
-class DPM():
+class DPM:
     def __init__(self, con, node):
         self.desired_node = node or 'MCAST'
         self.dpm_task = None
@@ -145,6 +148,7 @@ class DPM():
         self._dev_list = {}
         self.con = con
         self.gen = None
+        self.creds = None
 
     async def __aiter__(self):
         return self.gen
@@ -367,7 +371,63 @@ calling this method, a few readings may still get delivered.
     async def _shutdown(self):
         await self.gen.aclose()
 
-class DPMContext():
+    @staticmethod
+    def _build_struct(ref_id, value):
+        if isinstance(value, bytearray):
+            set_struct = RawSetting_struct()
+        elif isinstance(value, str):
+            set_struct = TextSetting_struct()
+        else:
+            set_struct = ScaledSetting_struct()
+            value = [value]
+
+        set_struct.ref_id = ref_id
+        set_struct.data = value
+        return set_struct
+
+    async def apply_settings(self, input_array):
+        """A placeholder for apply setting docstring
+        """
+
+        if self.creds is None:
+            self.creds = gssapi.creds.Credentials(usage='initiate')
+
+        principal = str(self.creds.name).split('@')
+
+        if principal[1] != 'FNAL.GOV':
+            self.creds = None
+            raise ValueError('invalid Kerberos domain')
+        elif self.creds.lifetime <= 0:
+            self.creds = None
+            raise ValueError('Kerberos ticket expired')
+
+        if not isinstance(input_array, list):
+            input_array = [input_array]
+
+        msg = ApplySettings_request()
+        msg.list_id = self.list_id
+        msg.user_name = principal[0]
+
+        all_settings = []
+        for ref_id, input_val in input_array:
+            all_settings.append(DPM._build_struct(ref_id, input_val))
+
+        msg.raw_array = [val for val in all_settings
+                         if isinstance(val, RawSetting_struct)]
+        msg.text_array = [val for val in all_settings
+                          if isinstance(val, TextSetting_struct)]
+        msg.scaled_array = [val for val in all_settings
+                            if isinstance(val, ScaledSetting_struct)]
+
+        _, reply = self.con.request_reply(self.dpm_task, msg, proto=dpm_protocol)
+
+        assert isinstance(reply, Status_reply)
+
+        sts = acsys.status.Status(reply.status)
+        if sts.isFatal:
+            raise sts
+
+class DPMContext:
     def __init__(self, con, *, dpm_node=None):
         self.dpm = DPM(con, dpm_node)
 
