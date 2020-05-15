@@ -658,6 +658,9 @@ isn't an integer, ValueError is raised.
                 else:
                     raise sts
         finally:
+            # If this generator exits for any reason, cancel the
+            # associated request.
+
             _log.debug('canceling request %d', reqid)
             await self._cancel(reqid)
 
