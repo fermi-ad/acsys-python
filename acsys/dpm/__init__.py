@@ -157,8 +157,9 @@ class DPM:
         dpm = await find_dpm(self.con, node=self.desired_node)
 
         if not (dpm is None):
-            self.dpm_task = 'DPMD@' + dpm
-            _log.info('using DPM task: %s', self.dpm_task)
+            task = 'DPMD@' + dpm
+            self.dpm_task = await self.con.make_canonical_taskname(task)
+            _log.info('using DPM task: %s', task)
         else:
             self.dpm_task = None
 
