@@ -41,7 +41,7 @@ scaled, floating point value (or an array, if it's an array device.)
         self.cycle = cycle
 
     def __str__(self):
-        return f'{ { tag: {self.tag}, stamp: {self.stamp}, data: {self.data} }'
+        return f'{{ tag: {self.tag}, stamp: {self.stamp}, data: {self.data} }}'
 
 class ItemStatus:
     """An object reporting status of an item in a DPM list.
