@@ -489,13 +489,43 @@ pool is being used for the connection.
         else:
             return node
 
-    async def _split_taskname(self, taskname):
-        part = taskname.split('@', 1)
-        if len(part) == 2:
-            addr = await self.get_addr(part[1])
-            return (Connection.__ator(part[0]), addr)
+    async def make_canonical_taskname(self, taskname):
+        """Return an efficient form of taskname.
+
+This library uses the 'HANDLE@NODE' format to refer to remote tasks.
+The internals of ACNET actually use trunk/node addresses and an
+integer form of the handle name when routing messages. This means the
+convenient form requires a look-up call to the ACNET service to get
+the underlying address of the node.
+
+If few requests are made, this overhead is negligible. If frequent
+requests are made to the same task, hoever, some overhead can be
+avoided by converting the convenient format into this efficient
+format.
+
+        """
+
+        if isinstance(taskname, str):
+            part = taskname.split('@', 1)
+            if len(part) == 2:
+                addr = await self.get_addr(part[1])
+                return (Connection.__ator(part[0]), addr)
+            else:
+                raise ValueError('taskname has bad format')
+        elif isinstance(taskname, tuple) and len(taskname) == 2:
+            if isinstance(taskname[0], int):
+                if isinstance(taskname[1], int):
+                    return taskname
+                else:
+                    return (taskname[0], await self.get_addr(taskname[1]))
+            else:
+                handle = Connection.__ator(taskname[0])
+                if isinstance(taskname[1], int):
+                    return (handle, taskname[1])
+                else:
+                    return (handle, await self.get_addr(taskname[1]))
         else:
-            raise ValueError('too many @ characters')
+            raise ValueError('invalid taskname')
 
     async def _mk_req(self, remtsk, message, mult, proto, timeout):
         # If a protocol module name was provided, verify the message
@@ -512,7 +542,7 @@ pool is being used for the connection.
         # is an integer.
 
         if isinstance(message, (bytes, bytearray)) and isinstance(timeout, int):
-            task, node = await self._split_taskname(remtsk)
+            task, node = await self.make_canonical_taskname(remtsk)
             buf = struct.pack('>I2H3I2HI', 24 + len(message), 1, 18,
                               self._raw_handle, 0, task, node, mult,
                               timeout) + message
