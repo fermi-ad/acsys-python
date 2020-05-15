@@ -502,7 +502,7 @@ pool is being used for the connection.
         # object has a '.marshal()' method. If it does, use it to
         # create a bytearray.
 
-        if proto:
+        if not (proto is None):
             if hasattr(message, 'marshal'):
                 message = bytearray(message.marshal())
             else:
