@@ -704,7 +704,7 @@ raise an ACSys Status code.
         """
         node = await self._to_nodename(node)
         try:
-            await self.request_reply('ACNET@' + node, b'\x00\x00')
+            await self.request_reply('ACNET@' + node, b'\x00\x00', timeout=250)
             return True
         except acsys.status.Status as e:
             if e == acsys.status.ACNET_REQTMO:
