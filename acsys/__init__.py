@@ -9,6 +9,9 @@ Your function should get passed to `acsys.run_client()`.
 This library writes to the 'asyncio' logger. Your script can configure
 the logger as it sees fit.
 
+NOTE: Due to security concerns, you cannot access the control system
+offsite unless you use Fermi's VPN.
+
 
 EXAMPLE #1: Specifying your script's starting function.
 
