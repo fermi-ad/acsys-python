@@ -8,7 +8,12 @@ from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     StartList_request, StopList_request,
                                     ClearList_request, RawSetting_struct,
                                     TextSetting_struct, ScaledSetting_struct,
-                                    ApplySettings_request, Status_reply)
+                                    ApplySettings_request, Status_reply,
+                                    AnalogAlarm_reply, BasicStatus_reply,
+                                    DigitalAlarm_reply, DeviceInfo_reply,
+                                    Raw_reply, ScalarArray_reply, Scalar_reply,
+                                    TextArray_reply, Text_reply,
+                                    ListStatus_reply)
 
 _log = logging.getLogger('asyncio')
 
@@ -29,7 +34,7 @@ scaled, floating point value (or an array, if it's an array device.)
 
     """
 
-    def __init__(self, tag, stamp, cycle, data, micros=None):
+    def __init__(self, tag, stamp, data, micros=None, meta={}):
         delta = datetime.timedelta(seconds=stamp // 1000,
                                    microseconds=(stamp % 1000) * 1000 + \
                                                 (micros or 0))
@@ -38,10 +43,10 @@ scaled, floating point value (or an array, if it's an array device.)
         self.tag = tag
         self.stamp = datetime.datetime(1970, 1, 1, tzinfo=tz) + delta
         self.data = data
-        self.cycle = cycle
+        self.meta = meta
 
     def __str__(self):
-        return f'{{ tag: {self.tag}, stamp: {self.stamp}, data: {self.data} }}'
+        return f'{{ tag: {self.tag}, stamp: {self.stamp}, data: {self.data}, meta: {self.meta} }}'
 
 class ItemStatus:
     """An object reporting status of an item in a DPM list.
@@ -63,33 +68,6 @@ the 'tag' until the error condition is fixed and the list restarted.
 
     def __str__(self):
         return f'{tag: {self.tag}, status: {self.status}}'
-
-# Since Python doesn't yet have `itertools` for async generators, we
-# kludge it by highjacking the unmarshal routine in our multiple reply
-# request. This function will be called for each incoming packet. We
-# first call the underlying protocol compiler routine to translate it
-# and then transform certain reply messages into `ItemData` and
-# `ItemStatus` types.
-
-def unmarshal_reply(ii):
-    """This is a function that needs to be exported, but should be
-    considered private.
-
-    """
-    msg = dpm_protocol.unmarshal_reply(ii)
-    if isinstance(msg, Status_reply):
-        return ItemStatus(msg.ref_id, acnet.status.Status(msg.status))
-    elif isinstance(msg, (dpm_protocol.AnalogAlarm_reply,
-                          dpm_protocol.BasicStatus_reply,
-                          dpm_protocol.DigitalAlarm_reply,
-                          dpm_protocol.Raw_reply,
-                          dpm_protocol.ScalarArray_reply,
-                          dpm_protocol.Scalar_reply,
-                          dpm_protocol.TextArray_reply,
-                          dpm_protocol.Text_reply)):
-        return ItemData(msg.ref_id, msg.timestamp, msg.cycle, msg.data)
-    else:
-        return msg
 
 async def find_dpm(con, *, node=None):
     """Use Service Discovery to find an available DPM.
@@ -151,7 +129,29 @@ class DPM:
         self.creds = None
 
     async def __aiter__(self):
-        return self.gen
+        return self
+
+    async def __anext__(self):
+        while True:
+            _, msg = await self.gen.__anext__()
+            if isinstance(msg, Status_reply):
+                return ItemStatus(msg.ref_id, acnet.status.Status(msg.status))
+            elif isinstance(msg, (AnalogAlarm_reply, BasicStatus_reply,
+                                  DigitalAlarm_reply, Raw_reply,
+                                  ScalarArray_reply, Scalar_reply,
+                                  TextArray_reply, Text_reply)):
+                return ItemData(msg.ref_id, msg.timestamp, msg.data,
+                                meta=self.meta.get(msg.ref_id, {}))
+            elif isinstance(msg, ListStatus_reply):
+                pass
+            elif isinstance(msg, DeviceInfo_reply):
+                self.meta[msg.ref_id] = \
+                    { 'di': msg.di, 'name': msg.name,
+                      'desc': msg.description,
+                      'units': msg.units if hasattr(msg, 'units') else None,
+                      'format_hint': msg.format_hint if hasattr(msg, 'format_hint') else None }
+            else:
+                return msg
 
     async def _find_dpm(self):
         dpm = await find_dpm(self.con, node=self.desired_node)
