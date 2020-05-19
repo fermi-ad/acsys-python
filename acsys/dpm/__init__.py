@@ -129,14 +129,23 @@ This function returns a list of available DPM nodes.
 
 class DPM:
     def __init__(self, con, node):
+        # These properties can be accessed without owning '_state_sem'
+        # because they're either constant or they're not manipulated
+        # across 'await' statements.
+
         self.desired_node = node or 'MCAST'
+        self.con = con
+        self.creds = None
+        self.meta = {}
+
+        self._state_sem = asyncio.Semaphore()
+
+        # When accessing these properties, '_state_sem' must be owned.
+
         self.dpm_task = None
         self.list_id = None
-        self._dev_list_sem = asyncio.Semaphore()
         self._dev_list = {}
-        self.con = con
         self.gen = None
-        self.creds = None
 
     async def __aiter__(self):
         return self
@@ -174,19 +183,20 @@ class DPM:
             self.dpm_task = None
 
     async def _connect(self):
-        await self._find_dpm()
+        async with self._state_sem:
+            await self._find_dpm()
 
-        # Send an OPEN LIST request to the DPM.
+            # Send an OPEN LIST request to the DPM.
 
-        gen = self.con.request_stream(self.dpm_task, OpenList_request(),
-                                      proto=acsys.dpm)
-        _, msg = await gen.asend(None)
-        _log.info('DPM returned list id %d', msg.list_id)
+            gen = self.con.request_stream(self.dpm_task, OpenList_request(),
+                                          proto=dpm_protocol)
+            _, msg = await gen.asend(None)
+            _log.info('DPM returned list id %d', msg.list_id)
 
-        # Update object state.
+            # Update object state.
 
-        self.gen = gen
-        self.list_id = msg.list_id
+            self.gen = gen
+            self.list_id = msg.list_id
 
     def get_entry(self, tag):
         """Returns the DRF string associated with the 'tag'.
@@ -202,10 +212,10 @@ list, either '.stop()' or '.start()' needs to be called.
         """
 
         msg = ClearList_request()
-        msg.list_id = self.list_id
 
-        async with self._dev_list_sem:
-            _log.debug('clearing list:%d', msg.list_id)
+        async with self._state_sem:
+            _log.debug('clearing list:%d', self.list_id)
+            msg.list_id = self.list_id
             _, msg = await self.con.request_reply(self.dpm_task, msg,
                                                   proto=dpm_protocol)
             sts = acsys.status.Status(msg.status)
@@ -250,18 +260,18 @@ is non-deterministic.
 
                 msg = AddToList_request()
 
-                msg.list_id = self.list_id
-                msg.ref_id = tag
-                msg.drf_request = drf
+                async with self._state_sem:
+                    msg.list_id = self.list_id
+                    msg.ref_id = tag
+                    msg.drf_request = drf
 
-                async with self._dev_list_sem:
                     # Perform the request. If the request returns a
                     # fatal error, the status will be raised for
                     # us. If the DPM returns a fatal status in the
                     # reply message, we raise it ourselves.
 
                     _log.debug('adding tag:%d, drf:%s to list:%d', tag, drf,
-                               msg.list_id)
+                               self.list_id)
                     _, msg = await self.con.request_reply(self.dpm_task, msg,
                                                           proto=dpm_protocol)
                     sts = acsys.status.Status(msg.status)
@@ -313,11 +323,11 @@ Data associated with the 'tag' will continue to be returned until the
 
             msg = RemoveFromList_request()
 
-            msg.list_id = self.list_id
-            msg.ref_id = tag
+            async with self._state_sem:
+                msg.list_id = self.list_id
+                msg.ref_id = tag
 
-            async with self._dev_list_sem:
-                _log.debug('removing tag:%d from list:%d', tag, msg.list_id)
+                _log.debug('removing tag:%d from list:%d', tag, self.list_id)
                 _, msg = await self.con.request_reply(self.dpm_task, msg,
                                                       proto=dpm_protocol)
                 sts = acsys.status.Status(msg.status)
@@ -344,10 +354,9 @@ then enable the changes all at once.
 
         msg = StartList_request()
 
-        msg.list_id = self.list_id
-
-        async with self._dev_list_sem:
-            _log.debug('starting list %d', msg.list_id)
+        async with self._state_sem:
+            _log.debug('starting list %d', self.list_id)
+            msg.list_id = self.list_id
             _, msg = await self.con.request_reply(self.dpm_task, msg,
                                                   proto=dpm_protocol)
             sts = acsys.status.Status(msg.status)
@@ -368,10 +377,9 @@ calling this method, a few readings may still get delivered.
 
         msg = StopList_request()
 
-        msg.list_id = self.list_id
-
-        async with self._dev_list_sem:
-            _log.debug('stopping list %d', msg.list_id)
+        async with self._state_sem:
+            _log.debug('stopping list %d', self.list_id)
+            msg.list_id = self.list_id
             _, msg = await self.con.request_reply(self.dpm_task, msg,
                                                   proto=dpm_protocol)
             sts = acsys.status.Status(msg.status)
