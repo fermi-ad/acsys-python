@@ -15,7 +15,7 @@ from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     TextArray_reply, Text_reply,
                                     ListStatus_reply)
 
-_log = logging.getLogger('asyncio')
+_log = logging.getLogger('acsys')
 
 class ItemData:
     """An object that holds a reading from a device.
