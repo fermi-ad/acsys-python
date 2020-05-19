@@ -108,7 +108,8 @@ error occurred while querying, None is returned.
 async def available_dpms(con):
     """Find active DPMs.
 
-This function returns a list of available DPM nodes.
+This function returns a list of available DPM nodes. If no DPMs are
+running, the list will be empty.
 
     """
     result = []
