@@ -78,6 +78,16 @@ error occurred while querying, None is returned.
 
     """
 
+    # The "(node or 'MCAST')" expression is very similar to ternary
+    # operators in other languages. If 'node' is None, it is treated
+    # as False in the expression so the result is the second operand
+    # (i.e. 'MCAST'.) If 'node' is not None, then the expression is
+    # equal to it.
+    #
+    # In other words, if the optional 'node' parameter isn't
+    # specified, the task is 'DPMD@MCAST'. If it is specified, the
+    # task is ('DPMD@' + node).
+
     task = 'DPMD@' + (node or 'MCAST')
     msg = ServiceDiscovery_request()
     try:
