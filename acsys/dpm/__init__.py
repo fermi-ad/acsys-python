@@ -13,7 +13,7 @@ from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     DigitalAlarm_reply, DeviceInfo_reply,
                                     Raw_reply, ScalarArray_reply, Scalar_reply,
                                     TextArray_reply, Text_reply,
-                                    ListStatus_reply)
+                                    ListStatus_reply, ApplySettings_reply)
 
 _log = logging.getLogger('acsys')
 
@@ -146,6 +146,7 @@ class DPM:
         self.dpm_task = None
         self.list_id = None
         self._dev_list = {}
+        self._qrpy = []
         self.gen = None
         self.active = False
 
@@ -158,6 +159,10 @@ class DPM:
                               TextArray_reply, Text_reply)):
             return ItemData(msg.ref_id, msg.timestamp, msg.data,
                             meta=self.meta.get(msg.ref_id, {}))
+        elif isinstance(msg, ApplySettings_reply):
+            for reply in msg.status:
+                self._qrpy.append(ItemStatus(reply.ref_id, reply.status))
+            return self._qrpy.pop(0) if len(self._qrpy) > 0 else None
         elif isinstance(msg, ListStatus_reply):
             return None
         elif isinstance(msg, DeviceInfo_reply):
@@ -175,16 +180,19 @@ class DPM:
     async def __anext__(self):
         while True:
             try:
-                _, msg = await self.gen.__anext__()
-                msg = self._xlat_reply(msg)
-
-                # If the message is not None, return it. If it is
-                # None, start at the top of the loop.
-
-                if not (msg is None):
-                    return msg
+                if len(self._qrpy) > 0:
+                    return self._qrpy.pop(0)
                 else:
-                    continue
+                    _, msg = await self.gen.__anext__()
+                    msg = self._xlat_reply(msg)
+
+                    # If the message is not None, return it. If it is
+                    # None, start at the top of the loop.
+
+                    if not (msg is None):
+                        return msg
+                    else:
+                        continue
             except acsys.status.Status as e:
 
                 # If we're disconnected from ACNET, re-throw the
@@ -204,6 +212,7 @@ class DPM:
     async def _restore_state(self):
         async with self._state_sem as lock:
             await self._connect(lock)
+            self._qrpy = []
             for tag, drf in self._dev_list.items():
                 await self._add_to_list(lock, tag, drf)
             if self.active:
