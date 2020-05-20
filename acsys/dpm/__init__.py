@@ -434,7 +434,8 @@ calling this method, a few readings may still get delivered.
             self.active = False
 
     async def _shutdown(self):
-        await self.gen.aclose()
+        if self.gen:
+            await self.gen.aclose()
 
     @staticmethod
     def _build_struct(ref_id, value):
