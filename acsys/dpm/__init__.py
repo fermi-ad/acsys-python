@@ -443,8 +443,9 @@ calling this method, a few readings may still get delivered.
         elif isinstance(value, str):
             set_struct = TextSetting_struct()
         else:
+            if not isinstance(value, list):
+                value = [value]
             set_struct = ScaledSetting_struct()
-            value = [value]
 
         set_struct.ref_id = ref_id
         set_struct.data = value
