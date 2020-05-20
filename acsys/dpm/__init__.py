@@ -455,43 +455,58 @@ calling this method, a few readings may still get delivered.
         """A placeholder for apply setting docstring
         """
 
-        if self.creds is None:
-            self.creds = gssapi.creds.Credentials(usage='initiate')
+        # Grab the semaphore to update the credentials. If two tasks
+        # try to do settings, we only want to update the credentials
+        # once.
 
-        principal = str(self.creds.name).split('@')
+        async with self._state_sem:
+            # If we have no credentials or the credential lifetime has
+            # expired, try to load new credentials.
 
-        if principal[1] != 'FNAL.GOV':
-            self.creds = None
-            raise ValueError('invalid Kerberos domain')
-        elif self.creds.lifetime <= 0:
-            self.creds = None
-            raise ValueError('Kerberos ticket expired')
+            if self.creds is None or self.creds.lifetime <= 0:
+                self.creds = gssapi.creds.Credentials(usage='initiate')
 
-        if not isinstance(input_array, list):
-            input_array = [input_array]
+            principal = str(self.creds.name).split('@')
 
-        msg = ApplySettings_request()
-        msg.list_id = self.list_id
-        msg.user_name = principal[0]
+            if principal[1] != 'FNAL.GOV':
+                self.creds = None
+                raise ValueError('invalid Kerberos domain')
+            elif self.creds.lifetime <= 0:
+                self.creds = None
+                raise ValueError('Kerberos ticket expired')
 
-        all_settings = []
-        for ref_id, input_val in input_array:
-            all_settings.append(DPM._build_struct(ref_id, input_val))
+            if not isinstance(input_array, list):
+                input_array = [input_array]
 
-        msg.raw_array = [val for val in all_settings
-                         if isinstance(val, RawSetting_struct)]
-        msg.text_array = [val for val in all_settings
-                          if isinstance(val, TextSetting_struct)]
-        msg.scaled_array = [val for val in all_settings
-                            if isinstance(val, ScaledSetting_struct)]
+            msg = ApplySettings_request()
+            msg.user_name = principal[0]
 
-        _, reply = self.con.request_reply(self.dpm_task, msg, proto=dpm_protocol)
+            for ref_id, input_val in input_array:
+                if self._dev_list.get(ref_id, None) is None:
+                    raise ValueError(f'setting for undefined ref_id, {ref_id}')
 
-        assert isinstance(reply, Status_reply)
+                s = DPM._build_struct(ref_id, input_val)
+                if isinstance(s, RawSetting_struct):
+                    if not hasattr(msg, 'raw_array'):
+                        msg.raw_array = []
+                    msg.raw_array.append(s)
+                elif isinstance(s, TextSetting_struct):
+                    if not hasattr(msg, 'text_array'):
+                        msg.text_array = []
+                    msg.text_array.append(s)
+                else:
+                    if not hasattr(msg, 'scaled_array'):
+                        msg.scaled_array = []
+                    msg.scaled_array.append(s)
 
-        sts = acsys.status.Status(reply.status)
-        if sts.isFatal:
-            raise sts
+            msg.list_id = self.list_id
+
+            _, reply = await self.con.request_reply(self.dpm_task, msg,
+                                                    proto=dpm_protocol)
+
+            sts = acsys.status.Status(reply.status)
+            if sts.isFatal:
+                raise sts
 
 class DPMContext:
     def __init__(self, con, *, dpm_node=None):
