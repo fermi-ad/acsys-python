@@ -67,7 +67,7 @@ the 'tag' until the error condition is fixed and the list restarted.
         self.status = acsys.status.Status(status)
 
     def __str__(self):
-        return f'{tag: {self.tag}, status: {self.status}}'
+        return f'{{ tag: {self.tag}, status: {self.status} }}'
 
 async def find_dpm(con, *, node=None):
     """Use Service Discovery to find an available DPM.
