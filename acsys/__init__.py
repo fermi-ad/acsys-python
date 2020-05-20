@@ -9,6 +9,9 @@ Your function should get passed to `acsys.run_client()`.
 This library writes to the 'asyncio' logger. Your script can configure
 the logger as it sees fit.
 
+NOTE: Due to security concerns, you cannot access the control system
+offsite unless you use Fermi's VPN.
+
 
 EXAMPLE #1: Specifying your script's starting function.
 
@@ -104,7 +107,7 @@ import acsys.status
 
 from acsys.status import ACNET_DISCONNECTED
 
-_log = logging.getLogger('asyncio')
+_log = logging.getLogger('acsys')
 
 # This map and the two following functions define a framework which
 # decodes incoming ACK packets.
@@ -453,6 +456,26 @@ node name, `name`.
         else:
             raise ValueError('name must be a string of no more than 6 characters')
 
+    async def get_local_node(self):
+        """Return the node name associated with this connection.
+
+Python scripts and web applications gain access to the control system
+through a pool of ACNET nodes. This method returns which node of the
+pool is being used for the connection.
+
+        """
+        buf = struct.pack('>I2H2I', 12, 1, 13, self._raw_handle, 0)
+        res = await self._xact(buf)
+        sts = status.Status(res[1])
+
+        # A good reply is a tuple with 4 elements.
+
+        if sts.isSuccess and len(res) == 4:
+            addr = res[2] * 256 + res[3]
+            return await self.get_name(addr)
+        else:
+            raise sts
+
     async def _to_trunknode(self, node):
         if isinstance(node, str):
             return await self.get_addr(node)
@@ -469,20 +492,50 @@ node name, `name`.
         else:
             return node
 
-    async def _split_taskname(self, taskname):
-        part = taskname.split('@', 1)
-        if len(part) == 2:
-            addr = await self.get_addr(part[1])
-            return (Connection.__ator(part[0]), addr)
+    async def make_canonical_taskname(self, taskname):
+        """Return an efficient form of taskname.
+
+This library uses the 'HANDLE@NODE' format to refer to remote tasks.
+The internals of ACNET actually use trunk/node addresses and an
+integer form of the handle name when routing messages. This means the
+convenient form requires a look-up call to the ACNET service to get
+the underlying address of the node.
+
+If few requests are made, this overhead is negligible. If frequent
+requests are made to the same task, hoever, some overhead can be
+avoided by converting the convenient format into this efficient
+format.
+
+        """
+
+        if isinstance(taskname, str):
+            part = taskname.split('@', 1)
+            if len(part) == 2:
+                addr = await self.get_addr(part[1])
+                return (Connection.__ator(part[0]), addr)
+            else:
+                raise ValueError('taskname has bad format')
+        elif isinstance(taskname, tuple) and len(taskname) == 2:
+            if isinstance(taskname[0], int):
+                if isinstance(taskname[1], int):
+                    return taskname
+                else:
+                    return (taskname[0], await self.get_addr(taskname[1]))
+            else:
+                handle = Connection.__ator(taskname[0])
+                if isinstance(taskname[1], int):
+                    return (handle, taskname[1])
+                else:
+                    return (handle, await self.get_addr(taskname[1]))
         else:
-            raise ValueError('too many @ characters')
+            raise ValueError('invalid taskname')
 
     async def _mk_req(self, remtsk, message, mult, proto, timeout):
         # If a protocol module name was provided, verify the message
         # object has a '.marshal()' method. If it does, use it to
         # create a bytearray.
 
-        if proto:
+        if not (proto is None):
             if hasattr(message, 'marshal'):
                 message = bytearray(message.marshal())
             else:
@@ -492,7 +545,7 @@ node name, `name`.
         # is an integer.
 
         if isinstance(message, (bytes, bytearray)) and isinstance(timeout, int):
-            task, node = await self._split_taskname(remtsk)
+            task, node = await self.make_canonical_taskname(remtsk)
             buf = struct.pack('>I2H3I2HI', 24 + len(message), 1, 18,
                               self._raw_handle, 0, task, node, mult,
                               timeout) + message
@@ -638,6 +691,9 @@ isn't an integer, ValueError is raised.
                 else:
                     raise sts
         finally:
+            # If this generator exits for any reason, cancel the
+            # associated request.
+
             _log.debug('canceling request %d', reqid)
             await self._cancel(reqid)
 
@@ -651,7 +707,7 @@ raise an ACSys Status code.
         """
         node = await self._to_nodename(node)
         try:
-            await self.request_reply('ACNET@' + node, b'\x00\x00')
+            await self.request_reply('ACNET@' + node, b'\x00\x00', timeout=250)
             return True
         except acsys.status.Status as e:
             if e == acsys.status.ACNET_REQTMO:

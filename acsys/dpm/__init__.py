@@ -1,13 +1,21 @@
 import datetime
 import asyncio
+import gssapi
 import logging
 import acsys.dpm.dpm_protocol
 from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     AddToList_request, RemoveFromList_request,
                                     StartList_request, StopList_request,
-                                    ClearList_request)
+                                    ClearList_request, RawSetting_struct,
+                                    TextSetting_struct, ScaledSetting_struct,
+                                    ApplySettings_request, Status_reply,
+                                    AnalogAlarm_reply, BasicStatus_reply,
+                                    DigitalAlarm_reply, DeviceInfo_reply,
+                                    Raw_reply, ScalarArray_reply, Scalar_reply,
+                                    TextArray_reply, Text_reply,
+                                    ListStatus_reply, ApplySettings_reply)
 
-_log = logging.getLogger('asyncio')
+_log = logging.getLogger('acsys')
 
 class ItemData:
     """An object that holds a reading from a device.
@@ -26,21 +34,19 @@ scaled, floating point value (or an array, if it's an array device.)
 
     """
 
-    def __init__(self, tag, stamp, cycle, data, micros=None):
+    def __init__(self, tag, stamp, data, micros=None, meta={}):
+        delta = datetime.timedelta(seconds=stamp // 1000,
+                                   microseconds=(stamp % 1000) * 1000 + \
+                                                (micros or 0))
+        tz = datetime.timezone.utc
+
         self.tag = tag
-        self.stamp = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc) + \
-                     datetime.timedelta(seconds=stamp // 1000,
-                                        milliseconds=stamp % 1000)
+        self.stamp = datetime.datetime(1970, 1, 1, tzinfo=tz) + delta
         self.data = data
-        self.cycle = cycle
-        if not micros is None:
-            self.micros = micros
+        self.meta = meta
 
     def __str__(self):
-        guaranteed_fields = f'{{ tag: {self.tag}, stamp: {self.stamp}, data: {self.data}'
-        if hasattr(self, 'micros'):
-            return guaranteed_fields + f', micros: {self.micros}'
-        return guaranteed_fields + ' }'
+        return f'{{ tag: {self.tag}, stamp: {self.stamp}, data: {self.data}, meta: {self.meta} }}'
 
 class ItemStatus:
     """An object reporting status of an item in a DPM list.
@@ -58,37 +64,10 @@ the 'tag' until the error condition is fixed and the list restarted.
 
     def __init__(self, tag, status):
         self.tag = tag
-        self.status = status
+        self.status = acsys.status.Status(status)
 
     def __str__(self):
-        return f'{tag: {self.tag}, status: {self.status}}'
-
-# Since Python doesn't yet have `itertools` for async generators, we
-# kludge it by highjacking the unmarshal routine in our multiple reply
-# request. This function will be called for each incoming packet. We
-# first call the underlying protocol compiler routine to translate it
-# and then transform certain reply messages into `ItemData` and
-# `ItemStatus` types.
-
-def unmarshal_reply(ii):
-    """This is a function that needs to be exported, but should be
-    considered private.
-
-    """
-    msg = dpm_protocol.unmarshal_reply(ii)
-    if isinstance(msg, dpm_protocol.Status_reply):
-        return ItemStatus(msg.ref_id, acnet.status.Status(msg.status))
-    elif isinstance(msg, (dpm_protocol.AnalogAlarm_reply,
-                          dpm_protocol.BasicStatus_reply,
-                          dpm_protocol.DigitalAlarm_reply,
-                          dpm_protocol.Raw_reply,
-                          dpm_protocol.ScalarArray_reply,
-                          dpm_protocol.Scalar_reply,
-                          dpm_protocol.TextArray_reply,
-                          dpm_protocol.Text_reply)):
-        return ItemData(msg.ref_id, msg.timestamp, msg.cycle, msg.data)
-    else:
-        return msg
+        return f'{{ tag: {self.tag}, status: {self.status} }}'
 
 async def find_dpm(con, *, node=None):
     """Use Service Discovery to find an available DPM.
@@ -98,6 +77,16 @@ first responder's node name is returned. If no DPMs are running or an
 error occurred while querying, None is returned.
 
     """
+
+    # The "(node or 'MCAST')" expression is very similar to ternary
+    # operators in other languages. If 'node' is None, it is treated
+    # as False in the expression so the result is the second operand
+    # (i.e. 'MCAST'.) If 'node' is not None, then the expression is
+    # equal to it.
+    #
+    # In other words, if the optional 'node' parameter isn't
+    # specified, the task is 'DPMD@MCAST'. If it is specified, the
+    # task is ('DPMD@' + node).
 
     task = 'DPMD@' + (node or 'MCAST')
     msg = ServiceDiscovery_request()
@@ -119,7 +108,8 @@ error occurred while querying, None is returned.
 async def available_dpms(con):
     """Find active DPMs.
 
-This function returns a list of available DPM nodes.
+This function returns a list of available DPM nodes. If no DPMs are
+running, the list will be empty.
 
     """
     result = []
@@ -138,35 +128,113 @@ This function returns a list of available DPM nodes.
             raise
     return result
 
-class DPM():
+class DPM:
     def __init__(self, con, node):
+        # These properties can be accessed without owning '_state_sem'
+        # because they're either constant or they're not manipulated
+        # across 'await' statements.
+
         self.desired_node = node or 'MCAST'
+        self.con = con
+        self.creds = None
+        self.meta = {}
+
+        self._state_sem = asyncio.Semaphore()
+
+        # When accessing these properties, '_state_sem' must be owned.
+
         self.dpm_task = None
         self.list_id = None
-        self._dev_list_sem = asyncio.Semaphore()
         self._dev_list = {}
-        self.con = con
+        self._qrpy = []
         self.gen = None
+        self.active = False
+
+    def _xlat_reply(self, msg):
+        if isinstance(msg, Status_reply):
+            return ItemStatus(msg.ref_id, msg.status)
+        elif isinstance(msg, (AnalogAlarm_reply, BasicStatus_reply,
+                              DigitalAlarm_reply, Raw_reply,
+                              ScalarArray_reply, Scalar_reply,
+                              TextArray_reply, Text_reply)):
+            return ItemData(msg.ref_id, msg.timestamp, msg.data,
+                            meta=self.meta.get(msg.ref_id, {}))
+        elif isinstance(msg, ApplySettings_reply):
+            for reply in msg.status:
+                self._qrpy.append(ItemStatus(reply.ref_id, reply.status))
+            return self._qrpy.pop(0) if len(self._qrpy) > 0 else None
+        elif isinstance(msg, ListStatus_reply):
+            return None
+        elif isinstance(msg, DeviceInfo_reply):
+            self.meta[msg.ref_id] = \
+                { 'di': msg.di, 'name': msg.name,
+                  'desc': msg.description,
+                  'units': msg.units if hasattr(msg, 'units') else None,
+                  'format_hint': msg.format_hint if hasattr(msg, 'format_hint') else None }
+        else:
+            return msg
 
     async def __aiter__(self):
-        return self.gen
+        return self
 
-    async def _find_dpm(self):
+    async def __anext__(self):
+        while True:
+            try:
+                if len(self._qrpy) > 0:
+                    return self._qrpy.pop(0)
+                else:
+                    _, msg = await self.gen.__anext__()
+                    msg = self._xlat_reply(msg)
+
+                    # If the message is not None, return it. If it is
+                    # None, start at the top of the loop.
+
+                    if not (msg is None):
+                        return msg
+                    else:
+                        continue
+            except acsys.status.Status as e:
+
+                # If we're disconnected from ACNET, re-throw the
+                # exception because there's more work to be done to
+                # restore the state of the program.
+
+                if e == acsys.status.ACNET_DISCONNECTED:
+                    raise
+
+            # If we've reached here, DPM returned a fatal ACNET
+            # status. Whatever it was, we need to pick another DPM and
+            # add all the current requests.
+
+            _log.warning('DPM connection closed ... retrying')
+            await self._restore_state()
+
+    async def _restore_state(self):
+        async with self._state_sem as lock:
+            await self._connect(lock)
+            self._qrpy = []
+            for tag, drf in self._dev_list.items():
+                await self._add_to_list(lock, tag, drf)
+            if self.active:
+                await self.start()
+
+    async def _find_dpm(self, lock):
         dpm = await find_dpm(self.con, node=self.desired_node)
 
         if not (dpm is None):
-            self.dpm_task = 'DPMD@' + dpm
-            _log.info('using DPM task: %s', self.dpm_task)
+            task = 'DPMD@' + dpm
+            self.dpm_task = await self.con.make_canonical_taskname(task)
+            _log.info('using DPM task: %s', task)
         else:
             self.dpm_task = None
 
-    async def _connect(self):
-        await self._find_dpm()
+    async def _connect(self, lock):
+        await self._find_dpm(lock)
 
         # Send an OPEN LIST request to the DPM.
 
         gen = self.con.request_stream(self.dpm_task, OpenList_request(),
-                                      proto=acsys.dpm)
+                                      proto=dpm_protocol)
         _, msg = await gen.asend(None)
         _log.info('DPM returned list id %d', msg.list_id)
 
@@ -189,10 +257,10 @@ list, either '.stop()' or '.start()' needs to be called.
         """
 
         msg = ClearList_request()
-        msg.list_id = self.list_id
 
-        async with self._dev_list_sem:
-            _log.debug('clearing list:%d', msg.list_id)
+        async with self._state_sem:
+            _log.debug('clearing list:%d', self.list_id)
+            msg.list_id = self.list_id
             _, msg = await self.con.request_reply(self.dpm_task, msg,
                                                   proto=dpm_protocol)
             sts = acsys.status.Status(msg.status)
@@ -203,6 +271,30 @@ list, either '.stop()' or '.start()' needs to be called.
             # DPM has been updated so we can safely clear the dictionary.
 
             self._dev_list = {}
+
+    async def _add_to_list(self, lock, tag, drf):
+        msg = AddToList_request()
+
+        msg.list_id = self.list_id
+        msg.ref_id = tag
+        msg.drf_request = drf
+
+        # Perform the request. If the request returns a fatal error,
+        # the status will be raised for us. If the DPM returns a fatal
+        # status in the reply message, we raise it ourselves.
+
+        _log.debug('adding tag:%d, drf:%s to list:%d', tag, drf, self.list_id)
+        _, msg = await self.con.request_reply(self.dpm_task, msg,
+                                              proto=dpm_protocol)
+        sts = acsys.status.Status(msg.status)
+
+        if sts.isFatal:
+            raise sts
+
+        # DPM has been updated so we can safely add the entry to our
+        # device list.
+
+        self._dev_list[tag] = drf
 
     async def add_entry(self, tag, drf):
         """Add an entry to the list of devices to be acquired.
@@ -233,33 +325,8 @@ is non-deterministic.
 
         if isinstance(tag, int):
             if isinstance(drf, str):
-                # Create the message and set the fields appropriately.
-
-                msg = AddToList_request()
-
-                msg.list_id = self.list_id
-                msg.ref_id = tag
-                msg.drf_request = drf
-
-                async with self._dev_list_sem:
-                    # Perform the request. If the request returns a
-                    # fatal error, the status will be raised for
-                    # us. If the DPM returns a fatal status in the
-                    # reply message, we raise it ourselves.
-
-                    _log.debug('adding tag:%d, drf:%s to list:%d', tag, drf,
-                               msg.list_id)
-                    _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                                          proto=dpm_protocol)
-                    sts = acsys.status.Status(msg.status)
-
-                    if sts.isFatal:
-                        raise sts
-
-                    # DPM has been updated so we can safely add the
-                    # entry to our device list.
-
-                    self._dev_list[tag] = drf
+                async with self._state_sem as lock:
+                    await self._add_to_list(lock, tag, drf)
             else:
                 raise ValueError('drf must be a string')
         else:
@@ -276,8 +343,15 @@ A future version of the DPM protocol will make this method much more
 reliable while maintaining its speed.
 
         """
-        for tag, drf in entries:
-            await self.add_entry(tag, drf)
+        async with self._state_sem as lock:
+            for tag, drf in entries:
+                if isinstance(tag, int):
+                    if isinstance(drf, str):
+                        await self._add_to_list(lock, tag, drf)
+                    else:
+                        raise ValueError('drf must be a string')
+                else:
+                    raise ValueError('tag must be an integer')
 
     async def remove_entry(self, tag):
         """Removes an entry from the list of devices to be acquired.
@@ -300,11 +374,11 @@ Data associated with the 'tag' will continue to be returned until the
 
             msg = RemoveFromList_request()
 
-            msg.list_id = self.list_id
-            msg.ref_id = tag
+            async with self._state_sem:
+                msg.list_id = self.list_id
+                msg.ref_id = tag
 
-            async with self._dev_list_sem:
-                _log.debug('removing tag:%d from list:%d', tag, msg.list_id)
+                _log.debug('removing tag:%d from list:%d', tag, self.list_id)
                 _, msg = await self.con.request_reply(self.dpm_task, msg,
                                                       proto=dpm_protocol)
                 sts = acsys.status.Status(msg.status)
@@ -319,6 +393,18 @@ Data associated with the 'tag' will continue to be returned until the
         else:
             raise ValueError('tag must be an integer')
 
+    async def _start(self, lock):
+        _log.debug('starting list %d', self.list_id)
+        msg = StartList_request()
+        msg.list_id = self.list_id
+        _, msg = await self.con.request_reply(self.dpm_task, msg,
+                                              proto=dpm_protocol)
+
+        sts = acsys.status.Status(msg.status)
+        if sts.isFatal:
+            raise sts
+        self.active = True
+
     async def start(self):
         """Start/restart data acquisition using the current request list.
 
@@ -329,18 +415,8 @@ then enable the changes all at once.
 
         """
 
-        msg = StartList_request()
-
-        msg.list_id = self.list_id
-
-        async with self._dev_list_sem:
-            _log.debug('starting list %d', msg.list_id)
-            _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                                  proto=dpm_protocol)
-            sts = acsys.status.Status(msg.status)
-
-            if sts.isFatal:
-                raise sts
+        async with self._state_sem as lock:
+            await self._start(lock)
 
     async def stop(self):
         """Stops data acquisition.
@@ -355,27 +431,100 @@ calling this method, a few readings may still get delivered.
 
         msg = StopList_request()
 
-        msg.list_id = self.list_id
-
-        async with self._dev_list_sem:
-            _log.debug('stopping list %d', msg.list_id)
+        async with self._state_sem:
+            _log.debug('stopping list %d', self.list_id)
+            msg.list_id = self.list_id
             _, msg = await self.con.request_reply(self.dpm_task, msg,
                                                   proto=dpm_protocol)
             sts = acsys.status.Status(msg.status)
 
             if sts.isFatal:
                 raise sts
+            self.active = False
 
     async def _shutdown(self):
-        await self.gen.aclose()
+        if self.gen:
+            await self.gen.aclose()
 
-class DPMContext():
+    @staticmethod
+    def _build_struct(ref_id, value):
+        if isinstance(value, bytearray):
+            set_struct = RawSetting_struct()
+        elif isinstance(value, str):
+            set_struct = TextSetting_struct()
+        else:
+            if not isinstance(value, list):
+                value = [value]
+            set_struct = ScaledSetting_struct()
+
+        set_struct.ref_id = ref_id
+        set_struct.data = value
+        return set_struct
+
+    async def apply_settings(self, input_array):
+        """A placeholder for apply setting docstring
+        """
+
+        # Grab the semaphore to update the credentials. If two tasks
+        # try to do settings, we only want to update the credentials
+        # once.
+
+        async with self._state_sem:
+            # If we have no credentials or the credential lifetime has
+            # expired, try to load new credentials.
+
+            if self.creds is None or self.creds.lifetime <= 0:
+                self.creds = gssapi.creds.Credentials(usage='initiate')
+
+            principal = str(self.creds.name).split('@')
+
+            if principal[1] != 'FNAL.GOV':
+                self.creds = None
+                raise ValueError('invalid Kerberos domain')
+            elif self.creds.lifetime <= 0:
+                self.creds = None
+                raise ValueError('Kerberos ticket expired')
+
+            if not isinstance(input_array, list):
+                input_array = [input_array]
+
+            msg = ApplySettings_request()
+            msg.user_name = principal[0]
+
+            for ref_id, input_val in input_array:
+                if self._dev_list.get(ref_id, None) is None:
+                    raise ValueError(f'setting for undefined ref_id, {ref_id}')
+
+                s = DPM._build_struct(ref_id, input_val)
+                if isinstance(s, RawSetting_struct):
+                    if not hasattr(msg, 'raw_array'):
+                        msg.raw_array = []
+                    msg.raw_array.append(s)
+                elif isinstance(s, TextSetting_struct):
+                    if not hasattr(msg, 'text_array'):
+                        msg.text_array = []
+                    msg.text_array.append(s)
+                else:
+                    if not hasattr(msg, 'scaled_array'):
+                        msg.scaled_array = []
+                    msg.scaled_array.append(s)
+
+            msg.list_id = self.list_id
+
+            _, reply = await self.con.request_reply(self.dpm_task, msg,
+                                                    proto=dpm_protocol)
+
+            sts = acsys.status.Status(reply.status)
+            if sts.isFatal:
+                raise sts
+
+class DPMContext:
     def __init__(self, con, *, dpm_node=None):
         self.dpm = DPM(con, dpm_node)
 
     async def __aenter__(self):
         _log.debug('entering DPM context')
-        await self.dpm._connect()
+        await self.dpm._restore_state()
         return self.dpm
 
     async def __aexit__(self, exc_type, exc, tb):
