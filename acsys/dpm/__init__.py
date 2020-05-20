@@ -64,7 +64,7 @@ the 'tag' until the error condition is fixed and the list restarted.
 
     def __init__(self, tag, status):
         self.tag = tag
-        self.status = status
+        self.status = acsys.status.Status(status)
 
     def __str__(self):
         return f'{tag: {self.tag}, status: {self.status}}'
@@ -151,7 +151,7 @@ class DPM:
 
     def _xlat_reply(self, msg):
         if isinstance(msg, Status_reply):
-            return ItemStatus(msg.ref_id, acsys.status.Status(msg.status))
+            return ItemStatus(msg.ref_id, msg.status)
         elif isinstance(msg, (AnalogAlarm_reply, BasicStatus_reply,
                               DigitalAlarm_reply, Raw_reply,
                               ScalarArray_reply, Scalar_reply,
