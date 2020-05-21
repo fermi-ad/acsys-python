@@ -492,7 +492,7 @@ calling this method, a few readings may still get delivered.
             msg.user_name = principal[0]
 
             for ref_id, input_val in input_array:
-                if self._dev_list.get(ref_id, None) is None:
+                if self._dev_list.get(ref_id) is None:
                     raise ValueError(f'setting for undefined ref_id, {ref_id}')
 
                 s = DPM._build_struct(ref_id, input_val)
