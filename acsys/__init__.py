@@ -666,11 +666,10 @@ isn't an integer, ValueError is raised.
         try:
             reqid = await self._mk_req(remtsk, message, 1, proto, timeout)
             rpy_q = asyncio.Queue()
-            done = False
 
             def handler(rpy, last):
-                rpy_q.put_nowait(rpy)
-                done = last
+                replier, sts, msg = rpy
+                rpy_q.put_nowait((replier, sts, msg, last))
 
             # Pre-stuff the queue with replies that may already have
             # arrived. BTW, we don't have to test for the validity of
@@ -688,8 +687,9 @@ isn't an integer, ValueError is raised.
 
             # This section implements the async generator.
 
+            done = False
             while not done:
-                snd, sts, msg = await rpy_q.get()
+                snd, sts, msg, done = await rpy_q.get()
                 if not sts.isFatal:
                     if (not proto is None) and len(msg) > 0:
                         msg = proto.unmarshal_reply(iter(msg))
