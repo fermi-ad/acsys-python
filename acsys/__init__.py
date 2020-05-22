@@ -624,7 +624,11 @@ isn't an integer, ValueError is raised.
             self.protocol.add_handler(reqid, reply_handler)
             return (await rpy_fut)
         else:
-            return (replies[0][1], replies[0][2], replies[0][3])
+            sts = replies[0][2]
+            if not sts.isFatal:
+                return (replies[0][1], replies[0][3])
+            else:
+                raise sts
 
     async def request_stream(self, remtsk, message, *, proto=None, timeout=1000):
         """Request a stream of replies from an ACSys task.
