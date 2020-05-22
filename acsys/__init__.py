@@ -592,6 +592,8 @@ isn't an integer, ValueError is raised.
 
         """
         def process_reply(reply):
+            assert isinstance(reply, tuple) and len(reply) == 3
+
             replier, sts, data = reply
             if not sts.isFatal:
                 if (not proto is None) and len(data) > 0:
@@ -631,7 +633,8 @@ isn't an integer, ValueError is raised.
             self.protocol.add_handler(reqid, reply_handler)
             return (await rpy_fut)
         else:
-            return process_reply(replies[0])
+            _, replier, sts, msg, _ = replies[0]
+            return process_reply((replier, sts, msg))
 
     async def request_stream(self, remtsk, message, *, proto=None, timeout=1000):
         """Request a stream of replies from an ACSys task.
@@ -666,11 +669,10 @@ isn't an integer, ValueError is raised.
         try:
             reqid = await self._mk_req(remtsk, message, 1, proto, timeout)
             rpy_q = asyncio.Queue()
-            done = False
 
             def handler(rpy, last):
-                rpy_q.put_nowait(rpy)
-                done = last
+                replier, sts, msg = rpy
+                rpy_q.put_nowait((replier, sts, msg, last))
 
             # Pre-stuff the queue with replies that may already have
             # arrived. BTW, we don't have to test for the validity of
@@ -688,8 +690,9 @@ isn't an integer, ValueError is raised.
 
             # This section implements the async generator.
 
+            done = False
             while not done:
-                snd, sts, msg = await rpy_q.get()
+                snd, sts, msg, done = await rpy_q.get()
                 if not sts.isFatal:
                     if (not proto is None) and len(msg) > 0:
                         msg = proto.unmarshal_reply(iter(msg))
