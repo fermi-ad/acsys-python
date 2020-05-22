@@ -593,26 +593,6 @@ isn't an integer, ValueError is raised.
         """
         reqid = await self._mk_req(remtsk, message, 0, proto, timeout)
 
-        # Create a future which will eventually resolve to the
-        # reply.
-
-        loop = asyncio.get_event_loop()
-        rpy_fut = loop.create_future()
-
-        # Define a function we can use to stuff the future
-        # with the reply. If the status is fatal, this
-        # function will resolve the future with an exception.
-        # Otherwise the reply message is set as the result.
-
-        def reply_handler(reply, _):
-            snd, sts, data = reply
-            if not sts.isFatal:
-                if proto:
-                    data = proto.unmarshal_reply(iter(data))
-                rpy_fut.set_result((snd, data))
-            else:
-                rpy_fut.set_exception(sts)
-
         # Save the handler in the map and return the future. BTW, we
         # don't have to test for the validity of 'self.protocol' here
         # because, to reach this point, the previous call to
@@ -621,6 +601,27 @@ isn't an integer, ValueError is raised.
 
         replies = self.protocol.pop_reqid(reqid)
         if len(replies) == 0:
+
+            # Create a future which will eventually resolve to the
+            # reply.
+
+            loop = asyncio.get_event_loop()
+            rpy_fut = loop.create_future()
+
+            # Define a function we can use to stuff the future with
+            # the reply. If the status is fatal, this function will
+            # resolve the future with an exception. Otherwise the
+            # reply message is set as the result.
+
+            def reply_handler(reply, _):
+                snd, sts, data = reply
+                if not sts.isFatal:
+                    if proto:
+                        data = proto.unmarshal_reply(iter(data))
+                    rpy_fut.set_result((snd, data))
+                else:
+                    rpy_fut.set_exception(sts)
+
             self.protocol.add_handler(reqid, reply_handler)
             return (await rpy_fut)
         else:
