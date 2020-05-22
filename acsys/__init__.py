@@ -591,6 +591,15 @@ If the message is in an incorrect format or the timeout parameter
 isn't an integer, ValueError is raised.
 
         """
+        def process_reply(reply):
+            replier, sts, data = reply
+            if not sts.isFatal:
+                if (not proto is None) and len(data) > 0:
+                    data = proto.unmarshal_reply(iter(data))
+                return (replier, data)
+            else:
+                raise sts
+
         reqid = await self._mk_req(remtsk, message, 0, proto, timeout)
 
         # Save the handler in the map and return the future. BTW, we
@@ -614,22 +623,15 @@ isn't an integer, ValueError is raised.
             # reply message is set as the result.
 
             def reply_handler(reply, _):
-                snd, sts, data = reply
-                if not sts.isFatal:
-                    if proto:
-                        data = proto.unmarshal_reply(iter(data))
-                    rpy_fut.set_result((snd, data))
-                else:
-                    rpy_fut.set_exception(sts)
+                try:
+                    rpy_fut.set_result(process_reply(reply))
+                except e:
+                    rpy_fut.set_exception(e)
 
             self.protocol.add_handler(reqid, reply_handler)
             return (await rpy_fut)
         else:
-            sts = replies[0][2]
-            if not sts.isFatal:
-                return (replies[0][1], replies[0][3])
-            else:
-                raise sts
+            return process_reply(replies[0])
 
     async def request_stream(self, remtsk, message, *, proto=None, timeout=1000):
         """Request a stream of replies from an ACSys task.
