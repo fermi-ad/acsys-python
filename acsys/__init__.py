@@ -199,6 +199,7 @@ class __AcnetdProtocol(asyncio.Protocol):
                                                              offset=2)
                 replier = t * 256 + n
                 last = (flg & 1) == 0
+                sts = status.Status(sts)
 
                 # Check to see if there's a function associated with
                 # the request ID
@@ -210,8 +211,6 @@ class __AcnetdProtocol(asyncio.Protocol):
 
                     if last:
                         del self._rpy_map[reqid]
-
-                    sts = status.Status(sts)
 
                     # Send the 3-tuple, (sender, status, message)
                     # to the recipient.
@@ -594,26 +593,6 @@ isn't an integer, ValueError is raised.
         """
         reqid = await self._mk_req(remtsk, message, 0, proto, timeout)
 
-        # Create a future which will eventually resolve to the
-        # reply.
-
-        loop = asyncio.get_event_loop()
-        rpy_fut = loop.create_future()
-
-        # Define a function we can use to stuff the future
-        # with the reply. If the status is fatal, this
-        # function will resolve the future with an exception.
-        # Otherwise the reply message is set as the result.
-
-        def reply_handler(reply, _):
-            snd, sts, data = reply
-            if not sts.isFatal:
-                if proto:
-                    data = proto.unmarshal_reply(iter(data))
-                rpy_fut.set_result((snd, data))
-            else:
-                rpy_fut.set_exception(sts)
-
         # Save the handler in the map and return the future. BTW, we
         # don't have to test for the validity of 'self.protocol' here
         # because, to reach this point, the previous call to
@@ -622,10 +601,35 @@ isn't an integer, ValueError is raised.
 
         replies = self.protocol.pop_reqid(reqid)
         if len(replies) == 0:
+
+            # Create a future which will eventually resolve to the
+            # reply.
+
+            loop = asyncio.get_event_loop()
+            rpy_fut = loop.create_future()
+
+            # Define a function we can use to stuff the future with
+            # the reply. If the status is fatal, this function will
+            # resolve the future with an exception. Otherwise the
+            # reply message is set as the result.
+
+            def reply_handler(reply, _):
+                snd, sts, data = reply
+                if not sts.isFatal:
+                    if proto:
+                        data = proto.unmarshal_reply(iter(data))
+                    rpy_fut.set_result((snd, data))
+                else:
+                    rpy_fut.set_exception(sts)
+
             self.protocol.add_handler(reqid, reply_handler)
             return (await rpy_fut)
         else:
-            return (replies[0][1], replies[0][2], replies[0][3])
+            sts = replies[0][2]
+            if not sts.isFatal:
+                return (replies[0][1], replies[0][3])
+            else:
+                raise sts
 
     async def request_stream(self, remtsk, message, *, proto=None, timeout=1000):
         """Request a stream of replies from an ACSys task.
