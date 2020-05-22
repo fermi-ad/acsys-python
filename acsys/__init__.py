@@ -199,6 +199,7 @@ class __AcnetdProtocol(asyncio.Protocol):
                                                              offset=2)
                 replier = t * 256 + n
                 last = (flg & 1) == 0
+                sts = status.Status(sts)
 
                 # Check to see if there's a function associated with
                 # the request ID
@@ -210,8 +211,6 @@ class __AcnetdProtocol(asyncio.Protocol):
 
                     if last:
                         del self._rpy_map[reqid]
-
-                    sts = status.Status(sts)
 
                     # Send the 3-tuple, (sender, status, message)
                     # to the recipient.
