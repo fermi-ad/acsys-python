@@ -592,6 +592,8 @@ isn't an integer, ValueError is raised.
 
         """
         def process_reply(reply):
+            assert isinstance(reply, tuple) and len(reply) == 3
+
             replier, sts, data = reply
             if not sts.isFatal:
                 if (not proto is None) and len(data) > 0:
@@ -631,7 +633,8 @@ isn't an integer, ValueError is raised.
             self.protocol.add_handler(reqid, reply_handler)
             return (await rpy_fut)
         else:
-            return process_reply(replies[0])
+            _, replier, sts, msg, _ = replies[0]
+            return process_reply((replier, sts, msg))
 
     async def request_stream(self, remtsk, message, *, proto=None, timeout=1000):
         """Request a stream of replies from an ACSys task.
