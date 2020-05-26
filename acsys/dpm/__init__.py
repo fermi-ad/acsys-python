@@ -206,7 +206,8 @@ class DPM:
             # status. Whatever it was, we need to pick another DPM and
             # add all the current requests.
 
-            _log.warning('DPM connection closed ... retrying')
+            _log.warning('DPM(id: %s) connection closed ... retrying',
+                         str(self.list_id))
             await self._restore_state()
 
     async def _restore_state(self):
@@ -259,7 +260,7 @@ list, either '.stop()' or '.start()' needs to be called.
         msg = ClearList_request()
 
         async with self._state_sem:
-            _log.debug('clearing list:%d', self.list_id)
+            _log.debug('DPM(id: %d) clearing list', self.list_id)
             msg.list_id = self.list_id
             _, msg = await self.con.request_reply(self.dpm_task, msg,
                                                   proto=dpm_protocol)
@@ -283,7 +284,7 @@ list, either '.stop()' or '.start()' needs to be called.
         # the status will be raised for us. If the DPM returns a fatal
         # status in the reply message, we raise it ourselves.
 
-        _log.debug('adding tag:%d, drf:%s to list:%d', tag, drf, self.list_id)
+        _log.debug('DPM(id: %d) adding tag:%d, drf:%s', self.list_id, tag, drf)
         _, msg = await self.con.request_reply(self.dpm_task, msg,
                                               proto=dpm_protocol)
         sts = acsys.status.Status(msg.status)
@@ -378,7 +379,7 @@ Data associated with the 'tag' will continue to be returned until the
                 msg.list_id = self.list_id
                 msg.ref_id = tag
 
-                _log.debug('removing tag:%d from list:%d', tag, self.list_id)
+                _log.debug('DPM(id: %d) removing tag:%d', self.list_id, tag)
                 _, msg = await self.con.request_reply(self.dpm_task, msg,
                                                       proto=dpm_protocol)
                 sts = acsys.status.Status(msg.status)
@@ -394,7 +395,7 @@ Data associated with the 'tag' will continue to be returned until the
             raise ValueError('tag must be an integer')
 
     async def _start(self, lock):
-        _log.debug('starting list %d', self.list_id)
+        _log.debug('DPM(id: %d) starting list', self.list_id)
         msg = StartList_request()
         msg.list_id = self.list_id
         _, msg = await self.con.request_reply(self.dpm_task, msg,
@@ -432,7 +433,7 @@ calling this method, a few readings may still get delivered.
         msg = StopList_request()
 
         async with self._state_sem:
-            _log.debug('stopping list %d', self.list_id)
+            _log.debug('DPM(id: %d) stopping list', self.list_id)
             msg.list_id = self.list_id
             _, msg = await self.con.request_reply(self.dpm_task, msg,
                                                   proto=dpm_protocol)
