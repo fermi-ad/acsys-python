@@ -1,6 +1,7 @@
 import datetime
 import asyncio
 import gssapi
+from gssapi.raw.types import RequirementFlag
 import logging
 import acsys.dpm.dpm_protocol
 from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
@@ -13,7 +14,8 @@ from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     DigitalAlarm_reply, DeviceInfo_reply,
                                     Raw_reply, ScalarArray_reply, Scalar_reply,
                                     TextArray_reply, Text_reply,
-                                    ListStatus_reply, ApplySettings_reply)
+                                    ListStatus_reply, ApplySettings_reply,
+                                    Authenticate_request, EnableSettings_request)
 
 _log = logging.getLogger('acsys')
 
@@ -136,7 +138,6 @@ class DPM:
 
         self.desired_node = node or 'MCAST'
         self.con = con
-        self.creds = None
         self.meta = {}
 
         self._state_sem = asyncio.Semaphore()
@@ -149,6 +150,7 @@ class DPM:
         self._qrpy = []
         self.gen = None
         self.active = False
+        self.can_set = False
 
     def _xlat_reply(self, msg):
         if isinstance(msg, Status_reply):
@@ -214,6 +216,8 @@ class DPM:
         async with self._state_sem as lock:
             await self._connect(lock)
             self._qrpy = []
+            if self.can_set:
+                self.enable_settings()
             for tag, drf in self._dev_list.items():
                 await self._add_to_list(lock, tag, drf)
             if self.active:
@@ -462,35 +466,83 @@ calling this method, a few readings may still get delivered.
         set_struct.data = value
         return set_struct
 
+    async def enable_settings(self):
+        """Enable settings for the current DPM session.
+
+This method exchanges credentials with the DPM. If successful, the
+session is allowed to make settings. The script must be running in an
+environment with a valid Kerberos ticket. The ticket must part of the
+FNAL.GOV realm and can't be expired.
+
+The credentials are valid as long as this session is maintained.
+
+        """
+
+        # Get the user's Kerberos credentials. Make sure they are from,
+        # the FNAL.GOV realm and they haven't expired.
+
+        creds = gssapi.creds.Credentials(usage='initiate')
+        principal = str(creds.name).split('@')
+
+        if principal[1] != 'FNAL.GOV':
+            raise ValueError('invalid Kerberos domain')
+        elif creds.lifetime <= 0:
+            raise ValueError('Kerberos ticket expired')
+
+        try:
+            # Create a security context used to sign messages.
+
+            service_name = gssapi.Name('daeset/bd/dmq.fnal.gov')
+            ctx = gssapi.SecurityContext(name=service_name, usage='initiate',
+                                         creds=creds,
+                                         flags=[RequirementFlag.replay_detection,
+                                                RequirementFlag.integrity,
+                                                RequirementFlag.out_of_sequence_detection],
+                                         mech=gssapi.MechType.kerberos)
+            try:
+                async with self._state_sem:
+
+                    # First send an Authentication request so DPM can
+                    # validate the context.
+
+                    msg = Authenticate_request()
+                    msg.list_id = self.list_id
+                    msg.token = ctx.step()
+
+                    _, reply = await self.con.request_reply(self.dpm_task, msg,
+                                                            proto=dpm_protocol)
+
+                    # Now that the context has been validated, send
+                    # the 'EnableSettings' request with a signed
+                    # messages.
+
+                    msg = EnableSettings_request()
+                    msg.list_id = self.list_id
+                    msg.message = b'1234'
+                    msg.MIC = ctx.get_signature(msg.message)
+
+                    _, reply = await self.con.request_reply(self.dpm_task, msg,
+                                                            proto=dpm_protocol)
+
+                    self.can_set = True
+                    _log.info('DPM(id: %d) settings enabled', self.list_id)
+            finally:
+                del ctx
+        finally:
+            del creds
+
     async def apply_settings(self, input_array):
         """A placeholder for apply setting docstring
         """
 
-        # Grab the semaphore to update the credentials. If two tasks
-        # try to do settings, we only want to update the credentials
-        # once.
-
         async with self._state_sem:
-            # If we have no credentials or the credential lifetime has
-            # expired, try to load new credentials.
-
-            if self.creds is None or self.creds.lifetime <= 0:
-                self.creds = gssapi.creds.Credentials(usage='initiate')
-
-            principal = str(self.creds.name).split('@')
-
-            if principal[1] != 'FNAL.GOV':
-                self.creds = None
-                raise ValueError('invalid Kerberos domain')
-            elif self.creds.lifetime <= 0:
-                self.creds = None
-                raise ValueError('Kerberos ticket expired')
+            if not self.can_set:
+                raise RuntimeError('settings are disabled')
 
             if not isinstance(input_array, list):
                 input_array = [input_array]
 
             msg = ApplySettings_request()
-            msg.user_name = principal[0]
 
             for ref_id, input_val in input_array:
                 if self._dev_list.get(ref_id) is None:
