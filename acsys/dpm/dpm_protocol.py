@@ -138,8 +138,7 @@ class RawSetting_struct:
         return not self.__eq__(other)
 
 def marshal_RawSetting_struct(val):
-    return chain(b'\x51\x04',
-                 b'\x12\x1e\xab',
+    return chain(b'\x51\x04\x12\x1e\xab',
                  marshal_int64(val.ref_id),
                  b'\x12\x7f\x38',
                  marshal_binary(val.data))
@@ -157,8 +156,7 @@ class ScaledSetting_struct:
         return not self.__eq__(other)
 
 def marshal_ScaledSetting_struct(val):
-    return chain(b'\x51\x04',
-                 b'\x12\x1e\xab',
+    return chain(b'\x51\x04\x12\x1e\xab',
                  marshal_int64(val.ref_id),
                  b'\x12\x7f\x38',
                  marshal_array(marshal_double, val.data))
@@ -176,8 +174,7 @@ class TextSetting_struct:
         return not self.__eq__(other)
 
 def marshal_TextSetting_struct(val):
-    return chain(b'\x51\x04',
-                 b'\x12\x1e\xab',
+    return chain(b'\x51\x04\x12\x1e\xab',
                  marshal_int64(val.ref_id),
                  b'\x12\x7f\x38',
                  marshal_array(marshal_string, val.data))
@@ -195,8 +192,7 @@ class SettingStatus_struct:
         return not self.__eq__(other)
 
 def marshal_SettingStatus_struct(val):
-    return chain(b'\x51\x04',
-                 b'\x12\x1e\xab',
+    return chain(b'\x51\x04\x12\x1e\xab',
                  marshal_int64(val.ref_id),
                  b'\x12\x44\x54',
                  marshal_int16(val.status))
@@ -212,8 +208,7 @@ class ServiceDiscovery_request:
         """Returns a generator that emits a character stream representing
            the marshaled contents of ServiceDiscovery_request."""
         return chain(marshal_header(),
-                     b'\x12\xdf\xda',
-                     b'\x51\x00')
+                     b'\x12\xdf\xda\x51\x00')
 
 class OpenList_request:
 
@@ -254,9 +249,7 @@ class AddToList_request:
         """Returns a generator that emits a character stream representing
            the marshaled contents of AddToList_request."""
         return chain(marshal_header(),
-                     b'\x11\x61',
-                     b'\x51\x06',
-                     b'\x12\xe8\x20',
+                     b'\x11\x61\x51\x06\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x1e\xab',
                      marshal_int64(self.ref_id),
@@ -279,9 +272,7 @@ class Authenticate_request:
         """Returns a generator that emits a character stream representing
            the marshaled contents of Authenticate_request."""
         return chain(marshal_header(),
-                     b'\x12\xc4\x53',
-                     b'\x51\x04',
-                     b'\x12\xe8\x20',
+                     b'\x12\xc4\x53\x51\x04\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x8d\xa1',
                      marshal_binary(self.token))
@@ -304,9 +295,7 @@ class EnableSettings_request:
         """Returns a generator that emits a character stream representing
            the marshaled contents of EnableSettings_request."""
         return chain(marshal_header(),
-                     b'\x12\x53\x62',
-                     b'\x51\x06',
-                     b'\x12\xe8\x20',
+                     b'\x12\x53\x62\x51\x06\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x1f\xcd',
                      marshal_binary(self.MIC),
@@ -329,9 +318,7 @@ class RemoveFromList_request:
         """Returns a generator that emits a character stream representing
            the marshaled contents of RemoveFromList_request."""
         return chain(marshal_header(),
-                     b'\x12\xf1\x21',
-                     b'\x51\x04',
-                     b'\x12\xe8\x20',
+                     b'\x12\xf1\x21\x51\x04\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x1e\xab',
                      marshal_int64(self.ref_id))
@@ -376,9 +363,7 @@ class ClearList_request:
         """Returns a generator that emits a character stream representing
            the marshaled contents of ClearList_request."""
         return chain(marshal_header(),
-                     b'\x12\xc3\x09',
-                     b'\x51\x02',
-                     b'\x12\xe8\x20',
+                     b'\x12\xc3\x09\x51\x02\x12\xe8\x20',
                      marshal_int32(self.list_id))
 
 class StopList_request:
@@ -395,9 +380,7 @@ class StopList_request:
         """Returns a generator that emits a character stream representing
            the marshaled contents of StopList_request."""
         return chain(marshal_header(),
-                     b'\x12\x53\xa9',
-                     b'\x51\x02',
-                     b'\x12\xe8\x20',
+                     b'\x12\x53\xa9\x51\x02\x12\xe8\x20',
                      marshal_int32(self.list_id))
 
 class ApplySettings_request:
@@ -460,9 +443,7 @@ class ServiceDiscovery_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of ServiceDiscovery_reply."""
         return chain(marshal_header(),
-                     b'\x12\xcd\x7e',
-                     b'\x51\x04',
-                     b'\x12\x1e\xb3',
+                     b'\x12\xcd\x7e\x51\x04\x12\x1e\xb3',
                      marshal_int16(self.load),
                      b'\x12\x11\xaf',
                      marshal_string(self.serviceLocation))
@@ -481,9 +462,7 @@ class OpenList_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of OpenList_reply."""
         return chain(marshal_header(),
-                     b'\x12\x34\x9e',
-                     b'\x51\x02',
-                     b'\x12\xe8\x20',
+                     b'\x12\x34\x9e\x51\x02\x12\xe8\x20',
                      marshal_int32(self.list_id))
 
 class AddToList_reply:
@@ -504,9 +483,7 @@ class AddToList_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of AddToList_reply."""
         return chain(marshal_header(),
-                     b'\x12\x8b\xac',
-                     b'\x51\x06',
-                     b'\x12\xe8\x20',
+                     b'\x12\x8b\xac\x51\x06\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x1e\xab',
                      marshal_int64(self.ref_id),
@@ -531,9 +508,7 @@ class RemoveFromList_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of RemoveFromList_reply."""
         return chain(marshal_header(),
-                     b'\x12\xf4\x1a',
-                     b'\x51\x06',
-                     b'\x12\xe8\x20',
+                     b'\x12\xf4\x1a\x51\x06\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x1e\xab',
                      marshal_int64(self.ref_id),
@@ -556,9 +531,7 @@ class StartList_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of StartList_reply."""
         return chain(marshal_header(),
-                     b'\x12\x96\x00',
-                     b'\x51\x04',
-                     b'\x12\xe8\x20',
+                     b'\x12\x96\x00\x51\x04\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x44\x54',
                      marshal_int16(self.status))
@@ -579,9 +552,7 @@ class ListStatus_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of ListStatus_reply."""
         return chain(marshal_header(),
-                     b'\x12\x73\x70',
-                     b'\x51\x04',
-                     b'\x12\xe8\x20',
+                     b'\x12\x73\x70\x51\x04\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x44\x54',
                      marshal_int16(self.status))
@@ -606,9 +577,7 @@ class Status_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of Status_reply."""
         return chain(marshal_header(),
-                     b'\x12\xd6\xad',
-                     b'\x51\x08',
-                     b'\x12\x1e\xab',
+                     b'\x12\xd6\xad\x51\x08\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -684,9 +653,7 @@ class Scalar_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of Scalar_reply."""
         return chain(marshal_header(),
-                     b'\x12\xd6\xab',
-                     b'\x51\x0a',
-                     b'\x12\x1e\xab',
+                     b'\x12\xd6\xab\x51\x0a\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -719,9 +686,7 @@ class ScalarArray_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of ScalarArray_reply."""
         return chain(marshal_header(),
-                     b'\x12\x59\xfc',
-                     b'\x51\x0a',
-                     b'\x12\x1e\xab',
+                     b'\x12\x59\xfc\x51\x0a\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -754,9 +719,7 @@ class Raw_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of Raw_reply."""
         return chain(marshal_header(),
-                     b'\x12\xcf\x5e',
-                     b'\x51\x0a',
-                     b'\x12\x1e\xab',
+                     b'\x12\xcf\x5e\x51\x0a\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -789,9 +752,7 @@ class Text_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of Text_reply."""
         return chain(marshal_header(),
-                     b'\x12\x8f\x32',
-                     b'\x51\x0a',
-                     b'\x12\x1e\xab',
+                     b'\x12\x8f\x32\x51\x0a\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -824,9 +785,7 @@ class TextArray_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of TextArray_reply."""
         return chain(marshal_header(),
-                     b'\x12\x32\x7b',
-                     b'\x51\x0a',
-                     b'\x12\x1e\xab',
+                     b'\x12\x32\x7b\x51\x0a\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -871,9 +830,7 @@ class AnalogAlarm_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of AnalogAlarm_reply."""
         return chain(marshal_header(),
-                     b'\x12\x75\x88',
-                     b'\x51\x16',
-                     b'\x12\x1e\xab',
+                     b'\x12\x75\x88\x51\x16\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -930,9 +887,7 @@ class DigitalAlarm_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of DigitalAlarm_reply."""
         return chain(marshal_header(),
-                     b'\x12\xc7\x9b',
-                     b'\x51\x16',
-                     b'\x12\x1e\xab',
+                     b'\x12\xc7\x9b\x51\x16\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -1041,9 +996,7 @@ class TimedScalarArray_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of TimedScalarArray_reply."""
         return chain(marshal_header(),
-                     b'\x12\x7a\x32',
-                     b'\x51\x0c',
-                     b'\x12\x1e\xab',
+                     b'\x12\x7a\x32\x51\x0c\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -1070,9 +1023,7 @@ class ApplySettings_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of ApplySettings_reply."""
         return chain(marshal_header(),
-                     b'\x12\x43\xc0',
-                     b'\x51\x02',
-                     b'\x12\x44\x54',
+                     b'\x12\x43\xc0\x51\x02\x12\x44\x54',
                      marshal_array(marshal_SettingStatus_struct, self.status))
 
 def marshal_request(val):
