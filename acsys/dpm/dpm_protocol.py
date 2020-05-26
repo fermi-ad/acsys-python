@@ -128,7 +128,7 @@ def marshal_header():
 class RawSetting_struct:
     def __init__(self):
         self.ref_id = int(0)
-        self.data = bytearray(b'')
+        self.data = b''
 
     def __eq__(self, other):
         return self.ref_id == other.ref_id and \
@@ -234,7 +234,7 @@ class OpenList_request:
                         + (2 if hasattr(self, 'location') else 0)),
                      chain(b'\x12\x9d\xe0',
                            marshal_string(self.location)) \
-                           if hasattr(self, 'location') else bytearray())
+                           if hasattr(self, 'location') else b'')
 
 class AddToList_request:
     def __init__(self):
@@ -266,7 +266,7 @@ class AddToList_request:
 class Authenticate_request:
     def __init__(self):
         self.list_id = int(0)
-        self.token = bytearray(b'')
+        self.token = b''
 
     def __eq__(self, other):
         return self.list_id == other.list_id and \
@@ -289,8 +289,8 @@ class Authenticate_request:
 class EnableSettings_request:
     def __init__(self):
         self.list_id = int(0)
-        self.MIC = bytearray(b'')
-        self.message = bytearray(b'')
+        self.MIC = b''
+        self.message = b''
 
     def __eq__(self, other):
         return self.list_id == other.list_id and \
@@ -360,7 +360,7 @@ class StartList_request:
                      marshal_int32(self.list_id),
                      chain(b'\x12\x5e\x63',
                            marshal_string(self.model)) \
-                           if hasattr(self, 'model') else bytearray())
+                           if hasattr(self, 'model') else b'')
 
 class ClearList_request:
     def __init__(self):
@@ -436,13 +436,13 @@ class ApplySettings_request:
                      marshal_int32(self.list_id),
                      chain(b'\x12\x03\x01',
                            marshal_array(marshal_RawSetting_struct, self.raw_array)) \
-                           if hasattr(self, 'raw_array') else bytearray(),
+                           if hasattr(self, 'raw_array') else b'',
                      chain(b'\x12\x63\xce',
                            marshal_array(marshal_ScaledSetting_struct, self.scaled_array)) \
-                           if hasattr(self, 'scaled_array') else bytearray(),
+                           if hasattr(self, 'scaled_array') else b'',
                      chain(b'\x12\xce\x8f',
                            marshal_array(marshal_TextSetting_struct, self.text_array)) \
-                           if hasattr(self, 'text_array') else bytearray())
+                           if hasattr(self, 'text_array') else b'')
 
 class ServiceDiscovery_reply:
     def __init__(self):
@@ -657,10 +657,10 @@ class DeviceInfo_reply:
                      marshal_string(self.description),
                      chain(b'\x12\x3d\xfb',
                            marshal_string(self.units)) \
-                           if hasattr(self, 'units') else bytearray(),
+                           if hasattr(self, 'units') else b'',
                      chain(b'\x12\x7e\xc2',
                            marshal_int16(self.format_hint)) \
-                           if hasattr(self, 'format_hint') else bytearray())
+                           if hasattr(self, 'format_hint') else b'')
 
 class Scalar_reply:
     def __init__(self):
@@ -738,7 +738,7 @@ class Raw_reply:
         self.timestamp = int(0)
         self.cycle = int(0)
         self.status = int(0)
-        self.data = bytearray(b'')
+        self.data = b''
 
     def __eq__(self, other):
         return self.ref_id == other.ref_id and \
@@ -1003,19 +1003,19 @@ class BasicStatus_reply:
                      marshal_int64(self.cycle),
                      chain(b'\x12\x5c\x01',
                            marshal_bool(self.on)) \
-                           if hasattr(self, 'on') else bytearray(),
+                           if hasattr(self, 'on') else b'',
                      chain(b'\x12\xab\x23',
                            marshal_bool(self.ready)) \
-                           if hasattr(self, 'ready') else bytearray(),
+                           if hasattr(self, 'ready') else b'',
                      chain(b'\x12\xe4\x86',
                            marshal_bool(self.remote)) \
-                           if hasattr(self, 'remote') else bytearray(),
+                           if hasattr(self, 'remote') else b'',
                      chain(b'\x12\x27\x16',
                            marshal_bool(self.positive)) \
-                           if hasattr(self, 'positive') else bytearray(),
+                           if hasattr(self, 'positive') else b'',
                      chain(b'\x12\x92\x38',
                            marshal_bool(self.ramp)) \
-                           if hasattr(self, 'ramp') else bytearray())
+                           if hasattr(self, 'ramp') else b'')
 
 class TimedScalarArray_reply:
     def __init__(self):
@@ -1834,4 +1834,3 @@ def unmarshal_reply(ii):
             raise ProtocolError("unknown reply type")
     except StopIteration:
         raise ProtocolError("unexpected end of input")
-
