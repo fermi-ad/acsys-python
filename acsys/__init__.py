@@ -149,15 +149,12 @@ class __AcnetdProtocol(asyncio.Protocol):
     def add_handler(self, reqid, handler):
         self._rpy_map[reqid] = handler
 
-    def _get_packet(self):
-        if len(self.buffer) >= 4:
-            total = (self.buffer[0] << 24) + (self.buffer[1] << 16) + \
-                    (self.buffer[2] << 8) + self.buffer[3]
-            if len(self.buffer) >= total + 4:
-                pkt = self.buffer[4:(total + 4)]
-                self.buffer = self.buffer[(total + 4):]
-                return pkt
-        return None
+    def _get_packet(self, view):
+        if len(view) >= 4:
+            total = (view[0] << 24) + (view[1] << 16) + (view[2] << 8) + view[3]
+            if len(view) >= total + 4:
+                return (view[4:(total + 4)], view[(total + 4):])
+        return (None, view)
 
     def pop_reqid(self, reqid):
         items = []
@@ -177,7 +174,7 @@ class __AcnetdProtocol(asyncio.Protocol):
 
         self.buffer += data
 
-        pkt = self._get_packet()
+        pkt, rest = self._get_packet(memoryview(self.buffer))
 
         while not (pkt is None):
             pkt_type = pkt[0] * 256 + pkt[1]
@@ -187,7 +184,7 @@ class __AcnetdProtocol(asyncio.Protocol):
             # ACK.
 
             if pkt_type == 2:
-                self.qCmd.get_nowait().set_result(bytearray(pkt))
+                self.qCmd.get_nowait().set_result(bytes(pkt))
 
             # Type 3 packets are ACSys reply traffic.
 
@@ -201,25 +198,28 @@ class __AcnetdProtocol(asyncio.Protocol):
                 last = (flg & 1) == 0
                 sts = status.Status(sts)
 
-                # Check to see if there's a function associated with
-                # the request ID
+                if sts != status.ACNET_PEND:
 
-                f = self._rpy_map.get(reqid)
-                if f:
-                    # If bit 0 is clear, this is the last reply so
-                    # we remove the entry from the map.
+                    # Check to see if there's a function associated
+                    # with the request ID
 
-                    if last:
-                        del self._rpy_map[reqid]
+                    f = self._rpy_map.get(reqid)
+                    if f:
+                        # If bit 0 is clear, this is the last reply so
+                        # we remove the entry from the map.
 
-                    # Send the 3-tuple, (sender, status, message)
-                    # to the recipient.
+                        if last:
+                            del self._rpy_map[reqid]
 
-                    if sts != status.ACNET_PEND:
-                        f((replier, sts, pkt[20:]), last)
-                else:
-                    self._rpy_queue.append((reqid, replier, sts, pkt[20:], last))
-            pkt = self._get_packet()
+                        # Send the 3-tuple, (sender, status, message)
+                        # to the recipient.
+
+                        f((replier, sts, bytes(pkt[20:])), last)
+                    else:
+                        self._rpy_queue.append((reqid, replier, sts,
+                                                bytes(pkt[20:]), last))
+            pkt, rest = self._get_packet(rest)
+        self.buffer = bytearray(rest[-len(rest):])
 
     # Gets called when the transport successfully connects. We send
     # out the RAW header to tell acnetd we're using the TCP socket in
