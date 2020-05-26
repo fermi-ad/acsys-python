@@ -15,6 +15,8 @@ __all__ = ['ProtocolError',
            'ServiceDiscovery_request',
            'OpenList_request',
            'AddToList_request',
+           'Authenticate_request',
+           'EnableSettings_request',
            'RemoveFromList_request',
            'StartList_request',
            'ClearList_request',
@@ -260,6 +262,56 @@ class AddToList_request:
                      marshal_int64(self.ref_id),
                      b'\x12\x63\x24',
                      marshal_string(self.drf_request))
+
+class Authenticate_request:
+    def __init__(self):
+        self.list_id = int(0)
+        self.token = bytearray(b'')
+
+    def __eq__(self, other):
+        return self.list_id == other.list_id and \
+            self.token == other.token
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def marshal(self):
+        """Returns a generator that emits a character stream representing
+           the marshaled contents of Authenticate_request."""
+        return chain(marshal_header(),
+                     b'\x12\xc4\x53',
+                     b'\x51\x04',
+                     b'\x12\xe8\x20',
+                     marshal_int32(self.list_id),
+                     b'\x12\x8d\xa1',
+                     marshal_binary(self.token))
+
+class EnableSettings_request:
+    def __init__(self):
+        self.list_id = int(0)
+        self.MIC = bytearray(b'')
+        self.message = bytearray(b'')
+
+    def __eq__(self, other):
+        return self.list_id == other.list_id and \
+            self.MIC == other.MIC and \
+            self.message == other.message
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def marshal(self):
+        """Returns a generator that emits a character stream representing
+           the marshaled contents of EnableSettings_request."""
+        return chain(marshal_header(),
+                     b'\x12\x53\x62',
+                     b'\x51\x06',
+                     b'\x12\xe8\x20',
+                     marshal_int32(self.list_id),
+                     b'\x12\x1f\xcd',
+                     marshal_binary(self.MIC),
+                     b'\x12\x31\x02',
+                     marshal_binary(self.message))
 
 class RemoveFromList_request:
     def __init__(self):
@@ -1201,6 +1253,40 @@ def unmarshal_AddToList_request(ii):
                 raise ProtocolError("unknown field found")
         return tmp
 
+def unmarshal_Authenticate_request(ii):
+    nFlds = consumeRawInt(ii, 0x50)
+    if nFlds != 4:
+        raise ProtocolError("incorrect number of fields")
+    else:
+        tmp = Authenticate_request()
+        for xx in range(nFlds // 2):
+            fld = consumeRawInt(ii, 0x10)
+            if fld == -6112:
+                tmp.list_id = unmarshal_int32(ii)
+            elif fld == -29279:
+                tmp.token = unmarshal_binary(ii)
+            else:
+                raise ProtocolError("unknown field found")
+        return tmp
+
+def unmarshal_EnableSettings_request(ii):
+    nFlds = consumeRawInt(ii, 0x50)
+    if nFlds != 6:
+        raise ProtocolError("incorrect number of fields")
+    else:
+        tmp = EnableSettings_request()
+        for xx in range(nFlds // 2):
+            fld = consumeRawInt(ii, 0x10)
+            if fld == -6112:
+                tmp.list_id = unmarshal_int32(ii)
+            elif fld == 8141:
+                tmp.MIC = unmarshal_binary(ii)
+            elif fld == 12546:
+                tmp.message = unmarshal_binary(ii)
+            else:
+                raise ProtocolError("unknown field found")
+        return tmp
+
 def unmarshal_RemoveFromList_request(ii):
     nFlds = consumeRawInt(ii, 0x50)
     if nFlds != 4:
@@ -1682,6 +1768,10 @@ def unmarshal_request(ii):
             return unmarshal_OpenList_request(ii)
         elif msg == 97:
             return unmarshal_AddToList_request(ii)
+        elif msg == -15277:
+            return unmarshal_Authenticate_request(ii)
+        elif msg == 21346:
+            return unmarshal_EnableSettings_request(ii)
         elif msg == -3807:
             return unmarshal_RemoveFromList_request(ii)
         elif msg == -8779:
