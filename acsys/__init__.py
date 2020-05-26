@@ -627,7 +627,7 @@ isn't an integer, ValueError is raised.
             def reply_handler(reply, _):
                 try:
                     rpy_fut.set_result(process_reply(reply))
-                except e:
+                except Exception as e:
                     rpy_fut.set_exception(e)
 
             self.protocol.add_handler(reqid, reply_handler)
