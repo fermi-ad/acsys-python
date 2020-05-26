@@ -67,7 +67,7 @@ def emitRawInt(tag, val):
         buf.append(curr)
     tmp = bytearray()
     emitEach(tmp, 0)
-    return bytes(tmp)
+    return tmp
 
 def marshal_bool(val):
     yield (0x71 if val else 0x70)
