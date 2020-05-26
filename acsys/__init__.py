@@ -192,8 +192,7 @@ class __AcnetdProtocol(asyncio.Protocol):
 
                 # Split out the interesting fields of the ACSys header.
 
-                (flg, sts, t, n, reqid) = struct.unpack_from('<HhBB8xH', pkt,
-                                                             offset=2)
+                (flg, sts, t, n, reqid) = struct.unpack('<HhBB8xH', pkt[2:18])
                 replier = t * 256 + n
                 last = (flg & 1) == 0
                 sts = status.Status(sts)
