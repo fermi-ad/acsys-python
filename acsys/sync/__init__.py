@@ -74,8 +74,11 @@ async def find_service(con, node=None):
         else:
             return None
 
-async def show_available(con):
+async def get_available(con):
     """Find active SYNCD services.
+
+Returns a list containing ACNET nodes tha support the SYNC service. If
+no nodes are found, an empty list is returned.
 
     """
     result = []
