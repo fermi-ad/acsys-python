@@ -83,9 +83,6 @@ def marshal_array(fn, val):
     else:
         raise ProtocolError('expected list type')
 
-def marshal_header():
-    return (ii for ii in b'SDD\x02\x51\x03\x14\xc7\xf5\x7b\x8d')
-
 class EvState_struct:
     def __init__(self):
         self.device_index = int(0)
@@ -136,7 +133,7 @@ class Discover_request:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of Discover_request."""
-        return chain(marshal_header(), b'\x12\x97\x3c\x51\x00')
+        return b'SDD\x02\x51\x03\x14\xc7\xf5\x7b\x8d\x12\x97\x3c\x51\x00'
 
 class Register_request:
     def __init__(self):
@@ -151,8 +148,7 @@ class Register_request:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of Register_request."""
-        return chain(marshal_header(),
-                     b'\x12\x12\xd6\x51\x02\x12\x99\xdf',
+        return chain(b'SDD\x02\x51\x03\x14\xc7\xf5\x7b\x8d\x12\x12\xd6\x51\x02\x12\x99\xdf',
                      marshal_array(marshal_string, self.evTclk))
 
 class Instance_reply:
