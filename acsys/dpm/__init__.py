@@ -31,9 +31,17 @@ ItemStatus."""
         return self._tag
 
     def isReadingFor(self, tag):
+        """Returns True if this object is an ItemData object and its 'tag'
+field matches the parameter 'tag'.
+
+        """
         return False
 
     def isStatusFor(self, tag):
+        """Returns True if this object is an ItemStatus object and its 'tag'
+field matches the parameter 'tag'.
+
+        """
         return False
 
 class ItemData(_ItemCommon):
@@ -79,8 +87,12 @@ parameter used in the call to the '.add_entry()' method.
 
 The 'status' field describes the error that occurred with this item.
 
-If this message appears, there will never be an ItemData object for
-the 'tag' until the error condition is fixed and the list restarted.
+If this message appears as a result of a reading request, there will
+never be an ItemData object for the 'tag' until the error condition is
+fixed and the list restarted.
+
+There will always be one of these objects generated to indicate the
+result of a setting.
 
     """
 
