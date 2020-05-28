@@ -68,9 +68,35 @@ scaled, floating point value (or an array, if it's an array device.)
                                                 (micros or 0))
         tz = datetime.timezone.utc
 
-        self.stamp = datetime.datetime(1970, 1, 1, tzinfo=tz) + delta
-        self.data = data
-        self.meta = meta
+        self._stamp = datetime.datetime(1970, 1, 1, tzinfo=tz) + delta
+        self._data = data
+        self._meta = meta
+
+    @property
+    def stamp(self):
+        """The timestamp of when the 'data' was sampled."""
+        return self._stamp
+
+    @property
+    def data(self):
+        """The sampled value of the device. The type of this field depends
+upon the device and what scaling was requested. Most readings will be
+'floats' but if a raw reading was requested, it'll be returned as a
+bytearray.
+
+        """
+        return self._data
+
+    @property
+    def meta(self):
+        """Contains a dictionary of extra information about the device.
+
+The 'name' key holds the device name. 'di' contains the device
+index. If the device has scaling, a 'units' key will be present and
+hold the engineering units of the reading.
+
+        """
+        return self._meta
 
     def __str__(self):
         return f'{{ tag: {self.tag}, stamp: {self.stamp}, data: {self.data}, meta: {self.meta} }}'
@@ -98,7 +124,13 @@ result of a setting.
 
     def __init__(self, tag, status):
         super().__init__(tag)
-        self.status = acsys.status.Status(status)
+        self._status = acsys.status.Status(status)
+
+    @property
+    def status(self):
+        """Indicates the resulting status of the request associated with
+'tag'."""
+        return self._status
 
     def __str__(self):
         return f'{{ tag: {self.tag}, status: {self.status} }}'
