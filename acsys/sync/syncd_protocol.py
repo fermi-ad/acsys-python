@@ -98,12 +98,6 @@ class EvState_struct:
     def __ne__(self, other):
         return not self.__eq__(other)
 
-def marshal_EvState_struct(val):
-    return chain(b'\x51\x04\x12\x05\xad',
-                 marshal_int32(val.device_index),
-                 b'\x12\xc1\x60',
-                 marshal_int32(val.value))
-
 class EvClock_struct:
     def __init__(self):
         self.event = int(0)
@@ -115,12 +109,6 @@ class EvClock_struct:
 
     def __ne__(self, other):
         return not self.__eq__(other)
-
-def marshal_EvClock_struct(val):
-    return chain(b'\x51\x04\x12\x63\x90',
-                 marshal_int16(val.event),
-                 b'\x12\x24\x8a',
-                 marshal_int32(val.number))
 
 class Event_struct:
     def __init__(self):
@@ -137,19 +125,6 @@ class Event_struct:
 
     def __ne__(self, other):
         return not self.__eq__(other)
-
-def marshal_Event_struct(val):
-    return chain(emitRawInt(0x50, 2 \
-                    + (2 if hasattr(val, 'state') else 0) \
-                    + (2 if hasattr(val, 'clock') else 0)),
-                 b'\x12\xc7\x8d',
-                 marshal_int64(val.stamp),
-                 chain(b'\x12\x9e\x2e',
-                       marshal_EvState_struct(val.state)) \
-                       if hasattr(val, 'state') else b'',
-                 chain(b'\x12\x1b\x19',
-                       marshal_EvClock_struct(val.clock)) \
-                       if hasattr(val, 'clock') else b'')
 
 class Discover_request:
     def __eq__(self, other):
@@ -187,11 +162,6 @@ class Instance_reply:
     def __ne__(self, other):
         return False
 
-    def marshal(self):
-        """Returns a generator that emits a character stream representing
-           the marshaled contents of Instance_reply."""
-        return chain(marshal_header(), b'\x12\xb7\x31\x51\x00')
-
 class Report_reply:
     def __init__(self):
         self.seq = int(0)
@@ -203,15 +173,6 @@ class Report_reply:
 
     def __ne__(self, other):
         return not self.__eq__(other)
-
-    def marshal(self):
-        """Returns a generator that emits a character stream representing
-           the marshaled contents of Report_reply."""
-        return chain(marshal_header(),
-                     b'\x12\xed\x8e\x51\x04\x12\xc2\xde',
-                     marshal_int16(self.seq),
-                     b'\x12\x8b\x06',
-                     marshal_array(marshal_Event_struct, self.events))
 
 def marshal_request(val):
     return val.marshal()
@@ -319,26 +280,6 @@ def unmarshal_Event_struct(ii):
                 raise ProtocolError('unknown field found')
         return tmp
 
-def unmarshal_Discover_request(ii):
-    if consumeRawInt(ii, 0x50) != 0:
-        raise ProtocolError('incorrect number of fields')
-    else:
-        return Discover_request()
-
-def unmarshal_Register_request(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 2:
-        raise ProtocolError('incorrect number of fields')
-    else:
-        tmp = Register_request()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
-            if fld == -26145:
-                tmp.evTclk = unmarshal_array(ii, unmarshal_string)
-            else:
-                raise ProtocolError('unknown field found')
-        return tmp
-
 def unmarshal_Instance_reply(ii):
     if consumeRawInt(ii, 0x50) != 0:
         raise ProtocolError('incorrect number of fields')
@@ -360,22 +301,6 @@ def unmarshal_Report_reply(ii):
             else:
                 raise ProtocolError('unknown field found')
         return tmp
-
-def unmarshal_request(ii):
-    """Attempts to unmarshal a request message from the specified
-       generator, ii. If an error occurs, the ProtocolError exception
-       will be raised."""
-    try:
-        unmarshal_header(ii)
-        msg = consumeRawInt(ii, 0x10)
-        if msg == -26820:
-            return unmarshal_Discover_request(ii)
-        elif msg == 4822:
-            return unmarshal_Register_request(ii)
-        else:
-            raise ProtocolError('unknown request type')
-    except StopIteration:
-        raise ProtocolError('unexpected end of input')
 
 def unmarshal_reply(ii):
     """Attempts to unmarshal a reply message from the specified
