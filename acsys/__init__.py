@@ -423,7 +423,7 @@ Returns the ACSys node name associated with the ACSys node address,
             res = await self._xact(buf)
             sts = status.Status(res[1])
 
-            # A good reply is a tuple with 4 elements.
+            # A good reply is a tuple with 3 elements.
 
             if sts.isSuccess and len(res) == 3:
                 return Connection.__rtoa(res[2])
