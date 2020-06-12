@@ -9,7 +9,7 @@ class Status(Exception):
         if val > -0x8000 and val <= 0x7fff:
             self.value = val
         else:
-            raise ValueError
+            raise ValueError('raw status values are 16-bit, signed integers')
 
     @property
     def facility(self):

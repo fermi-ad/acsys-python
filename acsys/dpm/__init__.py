@@ -520,7 +520,7 @@ calling this method, a few readings may still get delivered.
 
     @staticmethod
     def _build_struct(ref_id, value):
-        if isinstance(value, bytearray):
+        if isinstance(value, (bytearray, bytes)):
             set_struct = RawSetting_struct()
         elif isinstance(value, str):
             set_struct = TextSetting_struct()
@@ -552,7 +552,7 @@ The credentials are valid as long as this session is maintained.
         principal = str(creds.name).split('@')
 
         if principal[1] != 'FNAL.GOV':
-            raise ValueError('invalid Kerberos domain')
+            raise ValueError('invalid Kerberos realm')
         elif creds.lifetime <= 0:
             raise ValueError('Kerberos ticket expired')
 

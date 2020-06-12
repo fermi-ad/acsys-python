@@ -122,9 +122,6 @@ def marshal_array(fn, val):
     else:
         raise ProtocolError("expected list type")
 
-def marshal_header():
-    return (ii for ii in b'SDD\x02\x51\x03' b'\x14\xb1\x3a\x70\x3a')
-
 class RawSetting_struct:
     def __init__(self):
         self.ref_id = int(0)
@@ -207,8 +204,7 @@ class ServiceDiscovery_request:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of ServiceDiscovery_request."""
-        return chain(marshal_header(),
-                     b'\x12\xdf\xda\x51\x00')
+        return b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xdf\xda\x51\x00'
 
 class OpenList_request:
 
@@ -223,8 +219,7 @@ class OpenList_request:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of OpenList_request."""
-        return chain(marshal_header(),
-                     b'\x12\x08\x1c',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x08\x1c',
                      emitRawInt(0x50, 0 \
                         + (2 if hasattr(self, 'location') else 0)),
                      chain(b'\x12\x9d\xe0',
@@ -248,8 +243,7 @@ class AddToList_request:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of AddToList_request."""
-        return chain(marshal_header(),
-                     b'\x11\x61\x51\x06\x12\xe8\x20',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x11\x61\x51\x06\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x1e\xab',
                      marshal_int64(self.ref_id),
@@ -271,8 +265,7 @@ class Authenticate_request:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of Authenticate_request."""
-        return chain(marshal_header(),
-                     b'\x12\xc4\x53\x51\x04\x12\xe8\x20',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xc4\x53\x51\x04\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x8d\xa1',
                      marshal_binary(self.token))
@@ -294,8 +287,7 @@ class EnableSettings_request:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of EnableSettings_request."""
-        return chain(marshal_header(),
-                     b'\x12\x53\x62\x51\x06\x12\xe8\x20',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x53\x62\x51\x06\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x1f\xcd',
                      marshal_binary(self.MIC),
@@ -317,8 +309,7 @@ class RemoveFromList_request:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of RemoveFromList_request."""
-        return chain(marshal_header(),
-                     b'\x12\xf1\x21\x51\x04\x12\xe8\x20',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xf1\x21\x51\x04\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x1e\xab',
                      marshal_int64(self.ref_id))
@@ -339,8 +330,7 @@ class StartList_request:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of StartList_request."""
-        return chain(marshal_header(),
-                     b'\x12\xdd\xb5',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xdd\xb5',
                      emitRawInt(0x50, 2 \
                         + (2 if hasattr(self, 'model') else 0)),
                      b'\x12\xe8\x20',
@@ -362,8 +352,7 @@ class ClearList_request:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of ClearList_request."""
-        return chain(marshal_header(),
-                     b'\x12\xc3\x09\x51\x02\x12\xe8\x20',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xc3\x09\x51\x02\x12\xe8\x20',
                      marshal_int32(self.list_id))
 
 class StopList_request:
@@ -379,8 +368,7 @@ class StopList_request:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of StopList_request."""
-        return chain(marshal_header(),
-                     b'\x12\x53\xa9\x51\x02\x12\xe8\x20',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x53\xa9\x51\x02\x12\xe8\x20',
                      marshal_int32(self.list_id))
 
 class ApplySettings_request:
@@ -407,8 +395,7 @@ class ApplySettings_request:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of ApplySettings_request."""
-        return chain(marshal_header(),
-                     b'\x12\xc6\x78',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xc6\x78',
                      emitRawInt(0x50, 4 \
                         + (2 if hasattr(self, 'raw_array') else 0) \
                         + (2 if hasattr(self, 'scaled_array') else 0) \
@@ -442,8 +429,7 @@ class ServiceDiscovery_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of ServiceDiscovery_reply."""
-        return chain(marshal_header(),
-                     b'\x12\xcd\x7e\x51\x04\x12\x1e\xb3',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xcd\x7e\x51\x04\x12\x1e\xb3',
                      marshal_int16(self.load),
                      b'\x12\x11\xaf',
                      marshal_string(self.serviceLocation))
@@ -461,8 +447,7 @@ class OpenList_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of OpenList_reply."""
-        return chain(marshal_header(),
-                     b'\x12\x34\x9e\x51\x02\x12\xe8\x20',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x34\x9e\x51\x02\x12\xe8\x20',
                      marshal_int32(self.list_id))
 
 class AddToList_reply:
@@ -482,8 +467,7 @@ class AddToList_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of AddToList_reply."""
-        return chain(marshal_header(),
-                     b'\x12\x8b\xac\x51\x06\x12\xe8\x20',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x8b\xac\x51\x06\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x1e\xab',
                      marshal_int64(self.ref_id),
@@ -507,8 +491,7 @@ class RemoveFromList_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of RemoveFromList_reply."""
-        return chain(marshal_header(),
-                     b'\x12\xf4\x1a\x51\x06\x12\xe8\x20',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xf4\x1a\x51\x06\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x1e\xab',
                      marshal_int64(self.ref_id),
@@ -530,8 +513,7 @@ class StartList_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of StartList_reply."""
-        return chain(marshal_header(),
-                     b'\x12\x96\x00\x51\x04\x12\xe8\x20',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x96\x00\x51\x04\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x44\x54',
                      marshal_int16(self.status))
@@ -551,8 +533,7 @@ class ListStatus_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of ListStatus_reply."""
-        return chain(marshal_header(),
-                     b'\x12\x73\x70\x51\x04\x12\xe8\x20',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x73\x70\x51\x04\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      b'\x12\x44\x54',
                      marshal_int16(self.status))
@@ -576,8 +557,7 @@ class Status_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of Status_reply."""
-        return chain(marshal_header(),
-                     b'\x12\xd6\xad\x51\x08\x12\x1e\xab',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xd6\xad\x51\x08\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -611,8 +591,7 @@ class DeviceInfo_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of DeviceInfo_reply."""
-        return chain(marshal_header(),
-                     b'\x12\x6f\xed',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x6f\xed',
                      emitRawInt(0x50, 8 \
                         + (2 if hasattr(self, 'units') else 0) \
                         + (2 if hasattr(self, 'format_hint') else 0)),
@@ -652,8 +631,7 @@ class Scalar_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of Scalar_reply."""
-        return chain(marshal_header(),
-                     b'\x12\xd6\xab\x51\x0a\x12\x1e\xab',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xd6\xab\x51\x0a\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -685,8 +663,7 @@ class ScalarArray_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of ScalarArray_reply."""
-        return chain(marshal_header(),
-                     b'\x12\x59\xfc\x51\x0a\x12\x1e\xab',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x59\xfc\x51\x0a\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -718,8 +695,7 @@ class Raw_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of Raw_reply."""
-        return chain(marshal_header(),
-                     b'\x12\xcf\x5e\x51\x0a\x12\x1e\xab',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xcf\x5e\x51\x0a\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -751,8 +727,7 @@ class Text_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of Text_reply."""
-        return chain(marshal_header(),
-                     b'\x12\x8f\x32\x51\x0a\x12\x1e\xab',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x8f\x32\x51\x0a\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -784,8 +759,7 @@ class TextArray_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of TextArray_reply."""
-        return chain(marshal_header(),
-                     b'\x12\x32\x7b\x51\x0a\x12\x1e\xab',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x32\x7b\x51\x0a\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -829,8 +803,7 @@ class AnalogAlarm_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of AnalogAlarm_reply."""
-        return chain(marshal_header(),
-                     b'\x12\x75\x88\x51\x16\x12\x1e\xab',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x75\x88\x51\x16\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -886,8 +859,7 @@ class DigitalAlarm_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of DigitalAlarm_reply."""
-        return chain(marshal_header(),
-                     b'\x12\xc7\x9b\x51\x16\x12\x1e\xab',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xc7\x9b\x51\x16\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -942,8 +914,7 @@ class BasicStatus_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of BasicStatus_reply."""
-        return chain(marshal_header(),
-                     b'\x12\xf2\xf9',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xf2\xf9',
                      emitRawInt(0x50, 6 \
                         + (2 if hasattr(self, 'on') else 0) \
                         + (2 if hasattr(self, 'ready') else 0) \
@@ -995,8 +966,7 @@ class TimedScalarArray_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of TimedScalarArray_reply."""
-        return chain(marshal_header(),
-                     b'\x12\x7a\x32\x51\x0c\x12\x1e\xab',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x7a\x32\x51\x0c\x12\x1e\xab',
                      marshal_int64(self.ref_id),
                      b'\x12\xd5\x5b',
                      marshal_int64(self.timestamp),
@@ -1022,8 +992,7 @@ class ApplySettings_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of ApplySettings_reply."""
-        return chain(marshal_header(),
-                     b'\x12\x43\xc0\x51\x02\x12\x44\x54',
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x43\xc0\x51\x02\x12\x44\x54',
                      marshal_array(marshal_SettingStatus_struct, self.status))
 
 def marshal_request(val):

@@ -423,7 +423,7 @@ Returns the ACSys node name associated with the ACSys node address,
             res = await self._xact(buf)
             sts = status.Status(res[1])
 
-            # A good reply is a tuple with 4 elements.
+            # A good reply is a tuple with 3 elements.
 
             if sts.isSuccess and len(res) == 3:
                 return Connection.__rtoa(res[2])
@@ -500,7 +500,7 @@ convenient form requires a look-up call to the ACNET service to get
 the underlying address of the node.
 
 If few requests are made, this overhead is negligible. If frequent
-requests are made to the same task, hoever, some overhead can be
+requests are made to the same task, however, the overhead can be
 avoided by converting the convenient format into this efficient
 format.
 
