@@ -520,7 +520,7 @@ calling this method, a few readings may still get delivered.
 
     @staticmethod
     def _build_struct(ref_id, value):
-        if isinstance(value, bytearray):
+        if isinstance(value, (bytearray, bytes)):
             set_struct = RawSetting_struct()
         elif isinstance(value, str):
             set_struct = TextSetting_struct()
