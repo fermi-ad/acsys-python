@@ -552,7 +552,7 @@ The credentials are valid as long as this session is maintained.
         principal = str(creds.name).split('@')
 
         if principal[1] != 'FNAL.GOV':
-            raise ValueError('invalid Kerberos domain')
+            raise ValueError('invalid Kerberos realm')
         elif creds.lifetime <= 0:
             raise ValueError('Kerberos ticket expired')
 
