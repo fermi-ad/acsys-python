@@ -500,7 +500,7 @@ convenient form requires a look-up call to the ACNET service to get
 the underlying address of the node.
 
 If few requests are made, this overhead is negligible. If frequent
-requests are made to the same task, hoever, some overhead can be
+requests are made to the same task, however, the overhead can be
 avoided by converting the convenient format into this efficient
 format.
 
