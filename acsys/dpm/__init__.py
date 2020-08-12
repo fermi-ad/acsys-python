@@ -3,6 +3,8 @@ import asyncio
 import gssapi
 from gssapi.raw.types import RequirementFlag
 import logging
+import getpass
+import os
 import acsys.dpm.dpm_protocol
 from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     AddToList_request, RemoveFromList_request,
@@ -314,6 +316,9 @@ class DPM:
 
         self.gen = gen
         self.list_id = msg.list_id
+        await self._add_to_list(lock, 0, f'#USER:{getpass.getuser()}')
+        await self._add_to_list(lock, 0, f'#PID:{os.getpid()}')
+        await self._add_to_list(lock, 0, '#TYPE:Python3')
 
     def get_entry(self, tag):
         """Returns the DRF string associated with the 'tag'.
@@ -366,7 +371,8 @@ list, either '.stop()' or '.start()' needs to be called.
         # DPM has been updated so we can safely add the entry to our
         # device list.
 
-        self._dev_list[tag] = drf
+        if drf[0] != "#":
+            self._dev_list[tag] = drf
 
     async def add_entry(self, tag, drf):
         """Add an entry to the list of devices to be acquired.
