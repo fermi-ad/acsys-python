@@ -57,13 +57,14 @@ class StateEvent:
     def __str__(self):
         return f'<STATE di:{self.di}, value:{self.value}, stamp:{self.stamp}>'
 
-async def find_service(con, node=None):
+async def find_service(con, clock=syncd_protocol.Clock_Tclk, node=None):
     """Use Service Discovery to find an available SYNCD service.
 
     """
 
     task = 'SYNC@' + (node or 'MCAST')
     msg = syncd_protocol.Discover_request()
+    msg.clock = clock
     try:
         replier, _ = await con.request_reply(task, msg, timeout=150,
                                              proto=syncd_protocol)
@@ -74,7 +75,7 @@ async def find_service(con, node=None):
         else:
             return None
 
-async def get_available(con):
+async def get_available(con, clock=syncd_protocol.Clock_Tclk):
     """Find active SYNCD services.
 
 Returns a list containing ACNET nodes tha support the SYNC service. If
@@ -83,6 +84,7 @@ no nodes are found, an empty list is returned.
     """
     result = []
     msg = syncd_protocol.Discover_request()
+    msg.clock = clock
     gen = con.request_stream('SYNC@MCAST', msg, proto=syncd_protocol,
                              timeout=150)
     try:
@@ -93,7 +95,7 @@ no nodes are found, an empty list is returned.
             raise
     return result
 
-async def get_events(con, ev_str, sync_node=None):
+async def get_events(con, ev_str, sync_node=None, clock=syncd_protocol.Clock_Tclk):
     """Returns an async generator that yields event information.
 
 'con' is an acsys.Connection object. 'ev_str' is a list of
@@ -119,10 +121,12 @@ occur.
     msg.evTclk = ev_str
 
     while True:
-        node = await find_service(con, node=sync_node)
-
-        if node is None:
-            raise acsys.status.ACNET_NO_NODE
+        if sync_node is None:
+            node = await find_service(con, clock=clock, node=sync_node)
+            if node is None:
+                raise acsys.status.ACNET_NO_NODE
+        else:
+            node = sync_node
 
         _log.info('using SYNC service on %s', node)
 
