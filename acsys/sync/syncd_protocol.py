@@ -83,9 +83,6 @@ def marshal_array(fn, val):
     else:
         raise ProtocolError('expected list type')
 
-def marshal_header():
-    return (ii for ii in b'SDD\x02\x51\x03' b'\x14\xc7\xf5\x7b\x8d')
-
 __all__.append('Clock_Tclk')
 Clock_Tclk = 8267
 __all__.append('Clock_Test')
@@ -120,8 +117,7 @@ class EvState_struct:
         return not self.__eq__(other)
 
 def marshal_EvState_struct(val):
-    return chain(b'\x51\x04',
-                 b'\x12\x05\xad',
+    return chain(b'\x51\x04\x12\x05\xad',
                  marshal_int32(val.device_index),
                  b'\x12\xc1\x60',
                  marshal_int32(val.value))
@@ -139,8 +135,7 @@ class EvClock_struct:
         return not self.__eq__(other)
 
 def marshal_EvClock_struct(val):
-    return chain(b'\x51\x04',
-                 b'\x12\x63\x90',
+    return chain(b'\x51\x04\x12\x63\x90',
                  marshal_int16(val.event),
                  b'\x12\x24\x8a',
                  marshal_int32(val.number))
@@ -187,10 +182,7 @@ class Discover_request:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of Discover_request."""
-        return chain(marshal_header(),
-                     b'\x12\x97\x3c',
-                     b'\x51\x02',
-                     b'\x12\x1b\x19',
+        return chain(b'SDD\x02\x51\x03\x14\xc7\xf5\x7b\x8d\x12\x97\x3c\x51\x02\x12\x1b\x19',
                      marshal_Clock_enum(self.clock))
 
 class Register_request:
@@ -206,10 +198,7 @@ class Register_request:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of Register_request."""
-        return chain(marshal_header(),
-                     b'\x12\x12\xd6',
-                     b'\x51\x02',
-                     b'\x12\x99\xdf',
+        return chain(b'SDD\x02\x51\x03\x14\xc7\xf5\x7b\x8d\x12\x12\xd6\x51\x02\x12\x99\xdf',
                      marshal_array(marshal_string, self.evTclk))
 
 class Instance_reply:
@@ -222,9 +211,7 @@ class Instance_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of Instance_reply."""
-        return chain(marshal_header(),
-                     b'\x12\xb7\x31',
-                     b'\x51\x00')
+        return b'SDD\x02\x51\x03\x14\xc7\xf5\x7b\x8d\x12\xb7\x31\x51\x00'
 
 class Report_reply:
     def __init__(self):
@@ -241,10 +228,7 @@ class Report_reply:
     def marshal(self):
         """Returns a generator that emits a character stream representing
            the marshaled contents of Report_reply."""
-        return chain(marshal_header(),
-                     b'\x12\xed\x8e',
-                     b'\x51\x04',
-                     b'\x12\xc2\xde',
+        return chain(b'SDD\x02\x51\x03\x14\xc7\xf5\x7b\x8d\x12\xed\x8e\x51\x04\x12\xc2\xde',
                      marshal_int16(self.seq),
                      b'\x12\x8b\x06',
                      marshal_array(marshal_Event_struct, self.events))
