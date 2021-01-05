@@ -1,4 +1,6 @@
-# Building tarball
+# ACSYS Python DPM Client
+
+## Building tarball
 
 Make sure `setup.py` has the correct version number.
 
@@ -6,7 +8,7 @@ Make sure `setup.py` has the correct version number.
 
 will create `acsys.tgz`.
 
-# Installing
+## Installing
 
 This needs to be copied to the web server. Until this is automated,
 I'm copying it with the command
