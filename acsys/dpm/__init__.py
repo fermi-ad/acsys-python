@@ -17,7 +17,8 @@ from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     Raw_reply, ScalarArray_reply, Scalar_reply,
                                     TextArray_reply, Text_reply,
                                     ListStatus_reply, ApplySettings_reply,
-                                    Authenticate_request, EnableSettings_request)
+                                    Authenticate_request, EnableSettings_request,
+                                    TimedScalarArray_reply)
 
 _log = logging.getLogger('acsys')
 
@@ -72,6 +73,7 @@ scaled, floating point value (or an array, if it's an array device.)
         self._stamp = datetime.datetime(1970, 1, 1, tzinfo=tz) + delta
         self._data = data
         self._meta = meta
+        self._micros = micros
 
     @property
     def stamp(self):
@@ -99,8 +101,22 @@ hold the engineering units of the reading.
         """
         return self._meta
 
+    @property
+    def micros(self):
+        """Contains a list of microsecond timestamps for each datum in data.
+
+The index of each timestamp cooresponds to the same index in 'data'.
+
+        """
+        return self._micros
+
     def __str__(self):
-        return f'{{ tag: {self.tag}, stamp: {self.stamp}, data: {self.data}, meta: {self.meta} }}'
+        guaranteed_fields = f'{{ tag: {self.tag}, stamp: {self.stamp}, data: {self.data}, meta: {self.meta} }}'
+
+        if self.micros:
+            return f'{guaranteed_fields}, micros: {self.micros}'
+
+        return f'{guaranteed_fields}}}'
 
     def isReadingFor(self, tag):
         return self.tag == tag
@@ -242,6 +258,10 @@ class DPM:
                   'desc': msg.description,
                   'units': msg.units if hasattr(msg, 'units') else None,
                   'format_hint': msg.format_hint if hasattr(msg, 'format_hint') else None }
+        elif isinstance(msg, TimedScalarArray_reply):
+            return ItemData(msg.ref_id, msg.timestamp, msg.data,
+                            meta=self.meta.get(msg.ref_id, {}),
+                            micros=msg.micros)
         else:
             return msg
 
