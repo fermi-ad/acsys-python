@@ -19,3 +19,9 @@ Replace VID with the current version number in `setup.py`. Make sure
 to tag the project, too.
 
     git tag vVID
+
+## Development
+
+To test local modifications, use pip's editable mode.
+
+`pip install -e .`
