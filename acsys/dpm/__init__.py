@@ -66,8 +66,7 @@ scaled, floating point value (or an array, if it's an array device.)
     def __init__(self, tag, stamp, data, micros=None, meta={}):
         super().__init__(tag)
         delta = datetime.timedelta(seconds=stamp // 1000,
-                                   microseconds=(stamp % 1000) * 1000 + \
-                                                (micros or 0))
+                                   microseconds=(stamp % 1000) * 1000)
         tz = datetime.timezone.utc
 
         self._stamp = datetime.datetime(1970, 1, 1, tzinfo=tz) + delta
