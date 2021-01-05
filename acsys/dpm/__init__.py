@@ -219,6 +219,7 @@ class DPM:
         self.gen = None
         self.active = False
         self.can_set = False
+        self.model = None
 
     def _xlat_reply(self, msg):
         if isinstance(msg, Status_reply):
@@ -289,7 +290,7 @@ class DPM:
             for tag, drf in self._dev_list.items():
                 await self._add_to_list(lock, tag, drf)
             if self.active:
-                await self.start()
+                await self.start(self.model)
 
     async def _find_dpm(self, lock):
         dpm = await find_dpm(self.con, node=self.desired_node)
@@ -474,6 +475,10 @@ Data associated with the 'tag' will continue to be returned until the
         _log.debug('DPM(id: %d) starting list', self.list_id)
         msg = StartList_request()
         msg.list_id = self.list_id
+
+        if self.model:
+            msg.model = self.model
+
         _, msg = await self.con.request_reply(self.dpm_task, msg,
                                               proto=dpm_protocol)
 
@@ -482,7 +487,7 @@ Data associated with the 'tag' will continue to be returned until the
             raise sts
         self.active = True
 
-    async def start(self):
+    async def start(self, model=None):
         """Start/restart data acquisition using the current request list.
 
 Calls to '.add_entry()' and '.remove_entry()' make changes to the list
@@ -491,6 +496,8 @@ method is called. This allows a script to make major adjustments and
 then enable the changes all at once.
 
         """
+
+        self.model = model
 
         async with self._state_sem as lock:
             await self._start(lock)
