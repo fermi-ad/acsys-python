@@ -306,7 +306,7 @@ one indirectly through `acsys.run_client()`.
             result[int(5 - index)] = chars[int(second_bit % 40)]
             second_bit /= 40
 
-        return str.strip(result.tostring().decode('ascii'))
+        return str.strip(result.tobytes().decode('ascii'))
 
     # Convert a string to rad50 value
 
