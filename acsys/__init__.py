@@ -407,6 +407,7 @@ one indirectly through `acsys.run_client()`.
                 return con
             except:
                 del con
+                raise
         else:
             _log.error('*** unable to connect to ACSys')
             raise ACNET_DISCONNECTED
