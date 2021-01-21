@@ -591,7 +591,7 @@ The credentials are valid as long as this session is maintained.
         try:
             # Create a security context used to sign messages.
 
-            service_name = gssapi.Name('daeset/bd/dpe02.fnal.gov')
+            service_name = gssapi.Name('daeset/bd/dce01.fnal.gov')
             ctx = gssapi.SecurityContext(name=service_name, usage='initiate',
                                          creds=creds,
                                          flags=[RequirementFlag.replay_detection,
@@ -671,7 +671,7 @@ The credentials are valid as long as this session is maintained.
                 raise sts
 
 class DPMContext:
-    def __init__(self, con, *, dpm_node='DPE02'):
+    def __init__(self, con, *, dpm_node='DPM01'):
         self.dpm = DPM(con, dpm_node)
 
     async def __aenter__(self):
