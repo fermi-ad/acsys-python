@@ -60,7 +60,8 @@ The 'data' field is the requested data. The data will be of the type
 asked in the corresponding DRF2 (specified in the call to the
 '.add_entry()' method.) For instance, if .RAW was specified, the
 'data' field will contain a bytearray(). Otherwise it will contain a
-scaled, floating point value (or an array, if it's an array device.)
+scaled, floating point value (or an array, if it's an array device),
+or a dictionary -- in the case of basic status or alarm blocks.
 
     """
 
@@ -240,10 +241,16 @@ class DPM:
     def _xlat_reply(self, msg):
         if isinstance(msg, Status_reply):
             return ItemStatus(msg.ref_id, msg.status)
-        elif isinstance(msg, (AnalogAlarm_reply, BasicStatus_reply,
-                              DigitalAlarm_reply, Raw_reply,
-                              ScalarArray_reply, Scalar_reply,
-                              TextArray_reply, Text_reply)):
+        elif isinstance(msg, (AnalogAlarm_reply,
+                              DigitalAlarm_reply,
+                              BasicStatus_reply)):
+            return ItemData(msg.ref_id, msg.timestamp, msg.__dict__,
+                            meta=self.meta.get(msg.ref_id, {}))
+        elif isinstance(msg, (Raw_reply,
+                              ScalarArray_reply,
+                              Scalar_reply,
+                              TextArray_reply,
+                              Text_reply)):
             return ItemData(msg.ref_id, msg.timestamp, msg.data,
                             meta=self.meta.get(msg.ref_id, {}))
         elif isinstance(msg, ApplySettings_reply):
