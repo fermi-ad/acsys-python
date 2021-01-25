@@ -160,7 +160,7 @@ class __AcnetdProtocol(asyncio.Protocol):
         items = []
         rest = []
         for ii in self._rpy_queue:
-            a, b, c, e, f = ii
+            a, _, _, _, _ = ii
             if a == reqid:
                 items.append(ii)
             else:
