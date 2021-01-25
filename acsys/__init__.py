@@ -12,6 +12,12 @@ the logger as it sees fit.
 NOTE: Due to security concerns, you cannot access the control system
 offsite unless you use Fermi's VPN.
 
+NOTE: When developing scripts, you may find it useful to put the async
+scheduler in "debug mode". How to do it and what it does is described
+here:
+
+    https://docs.python.org/3/library/asyncio-dev.html#asyncio-debug-mode
+
 
 EXAMPLE #1: Specifying your script's starting function.
 
@@ -752,7 +758,6 @@ which will receive a fully initialized Connection object. When 'main'
 resolves, this function will return.
     """
     loop = asyncio.get_event_loop()
-    loop.set_debug(True)
     client_fut = asyncio.Task(__client_main(main))
     try:
         loop.run_until_complete(client_fut)
