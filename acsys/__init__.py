@@ -6,7 +6,7 @@ To use this library, your main function should be marked `async` and
 take a single parameter which will be the ACSys Connection object.
 Your function should get passed to `acsys.run_client()`.
 
-This library writes to the 'asyncio' logger. Your script can configure
+This library writes to the 'acsys' logger. Your script can configure
 the logger as it sees fit.
 
 NOTE: Due to security concerns, you cannot access the control system
