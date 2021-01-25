@@ -287,7 +287,7 @@ class DPM:
                     # If the message is not None, return it. If it is
                     # None, start at the top of the loop.
 
-                    if not (msg is None):
+                    if msg is not None:
                         return msg
                     else:
                         continue
@@ -322,7 +322,7 @@ class DPM:
     async def _find_dpm(self, lock):
         dpm = await find_dpm(self.con, node=self.desired_node)
 
-        if not (dpm is None):
+        if dpm is not None:
             task = 'DPMD@' + dpm
             self.dpm_task = await self.con.make_canonical_taskname(task)
             _log.info('using DPM task: %s', task)
