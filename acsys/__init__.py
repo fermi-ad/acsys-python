@@ -176,7 +176,7 @@ class __AcnetdProtocol(asyncio.Protocol):
 
         pkt, rest = self._get_packet(memoryview(self.buffer))
 
-        while not (pkt is None):
+        while pkt is not None:
             pkt_type = pkt[0] * 256 + pkt[1]
 
             # Type 2 packets are ACKs for commands. There should
@@ -231,7 +231,7 @@ class __AcnetdProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc):
         self.end()
-        if not (exc is None):
+        if exc is not None:
             _log.warning('lost connection with ACSys')
 
         # Loop through all active requests and send a message
@@ -255,7 +255,7 @@ class __AcnetdProtocol(asyncio.Protocol):
     async def xact(self, buf):
         ack_fut = asyncio.get_event_loop().create_future()
         await self.qCmd.put(ack_fut)
-        if not (self.transport is None):
+        if self.transport is not None:
             self.transport.write(buf)
             return _decode_ack(await ack_fut)
         else:
@@ -287,7 +287,7 @@ one indirectly through `acsys.run_client()`.
         self.protocol = None
 
     def __del__(self):
-        if not (self.protocol is None):
+        if self.protocol is not None:
             self.protocol.end()
 
     # Convert rad50 value to a string
@@ -343,7 +343,7 @@ one indirectly through `acsys.run_client()`.
         return (second_bit << 16) | first_bit
 
     async def _xact(self, buf):
-        if not (self.protocol is None):
+        if self.protocol is not None:
             while True:
                 try:
                     return await self.protocol.xact(buf)
@@ -400,7 +400,7 @@ one indirectly through `acsys.run_client()`.
     @staticmethod
     async def create():
         proto = await _create_socket()
-        if not (proto is None):
+        if proto is not None:
             con = Connection()
             try:
                 await con._connect(proto)
@@ -534,7 +534,7 @@ format.
         # object has a '.marshal()' method. If it does, use it to
         # create a bytearray.
 
-        if not (proto is None):
+        if proto is not None:
             if hasattr(message, 'marshal'):
                 message = bytearray(message.marshal())
             else:
@@ -596,7 +596,7 @@ isn't an integer, ValueError is raised.
 
             replier, sts, data = reply
             if not sts.isFatal:
-                if (not proto is None) and len(data) > 0:
+                if (proto is not None) and len(data) > 0:
                     data = proto.unmarshal_reply(iter(data))
                 return (replier, data)
             else:
@@ -694,7 +694,7 @@ isn't an integer, ValueError is raised.
             while not done:
                 snd, sts, msg, done = await rpy_q.get()
                 if not sts.isFatal:
-                    if (not proto is None) and len(msg) > 0:
+                    if (proto is not None) and len(msg) > 0:
                         msg = proto.unmarshal_reply(iter(msg))
                     yield (snd, msg)
                 else:
