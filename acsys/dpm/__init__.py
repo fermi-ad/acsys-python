@@ -562,6 +562,8 @@ calling this method, a few readings may still get delivered.
         if isinstance(value, (bytearray, bytes)):
             set_struct = RawSetting_struct()
         elif isinstance(value, str):
+            if not isinstance(value, list):
+                value = [value]
             set_struct = TextSetting_struct()
         else:
             if not isinstance(value, list):
