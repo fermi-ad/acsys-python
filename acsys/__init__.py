@@ -755,12 +755,14 @@ def run_client(main):
 
 This function starts up an ACSys session. `main` is an async function
 which will receive a fully initialized Connection object. When 'main'
-resolves, this function will return.
+resolves, this function will return. This function returns the value
+returned by the async function. If an exception is thrown, this
+function returns None.
     """
     loop = asyncio.get_event_loop()
     client_fut = asyncio.Task(__client_main(main))
     try:
-        loop.run_until_complete(client_fut)
+        return loop.run_until_complete(client_fut)
     except:
         client_fut.cancel()
         try:
