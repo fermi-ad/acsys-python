@@ -746,9 +746,10 @@ async def _create_socket():
 async def __client_main(main):
     con = await Connection.create()
     try:
-        await main(con)
+        result = (await main(con))
     finally:
         del con
+    return result
 
 def run_client(main):
     """Starts an asynchronous session for ACSys clients.
@@ -757,7 +758,7 @@ This function starts up an ACSys session. `main` is an async function
 which will receive a fully initialized Connection object. When 'main'
 resolves, this function will return. This function returns the value
 returned by the async function. If an exception is thrown, this
-function returns None.
+function re-raises it.
     """
     loop = asyncio.get_event_loop()
     client_fut = asyncio.Task(__client_main(main))
