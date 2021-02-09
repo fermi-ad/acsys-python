@@ -574,7 +574,7 @@ calling this method, a few readings may still get delivered.
         set_struct.data = value
         return set_struct
 
-    async def enable_settings(self, role):
+    async def enable_settings(self, role=None):
         """Enable settings for the current DPM session.
 
 This method exchanges credentials with the DPM. If successful, the
