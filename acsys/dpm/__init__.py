@@ -574,7 +574,7 @@ calling this method, a few readings may still get delivered.
         set_struct.data = value
         return set_struct
 
-    async def enable_settings(self):
+    async def enable_settings(self, role):
         """Enable settings for the current DPM session.
 
 This method exchanges credentials with the DPM. If successful, the
@@ -583,6 +583,10 @@ environment with a valid Kerberos ticket. The ticket must part of the
 FNAL.GOV realm and can't be expired.
 
 The credentials are valid as long as this session is maintained.
+
+The `role` parameter indicates in what role your script will be
+running. Your Kerberos principal should be authorized to operate in
+the role.
 
         """
 
@@ -608,7 +612,9 @@ The credentials are valid as long as this session is maintained.
                                                 RequirementFlag.out_of_sequence_detection],
                                          mech=gssapi.MechType.kerberos)
             try:
-                async with self._state_sem:
+                async with self._state_sem as lock:
+                    if role is not None:
+                        await self._add_to_list(lock, 0, f'#ROLE:{role}')
 
                     # First send an Authentication request so DPM can
                     # validate the context.
@@ -622,12 +628,14 @@ The credentials are valid as long as this session is maintained.
 
                     # Now that the context has been validated, send
                     # the 'EnableSettings' request with a signed
-                    # messages.
+                    # message.
 
                     msg = EnableSettings_request()
                     msg.list_id = self.list_id
                     msg.message = b'1234'
                     msg.MIC = ctx.get_signature(msg.message)
+
+                    # XXX: Need to test for GSSAPI failures.
 
                     _, reply = await self.con.request_reply(self.dpm_task, msg,
                                                             proto=dpm_protocol)
