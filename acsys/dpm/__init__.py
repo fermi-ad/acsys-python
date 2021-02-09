@@ -319,7 +319,7 @@ class DPM:
             if self.active:
                 await self.start(self.model)
 
-    async def _find_dpm(self, lock):
+    async def _find_dpm(self):
         dpm = await find_dpm(self.con, node=self.desired_node)
 
         if dpm is not None:
@@ -330,7 +330,7 @@ class DPM:
             self.dpm_task = None
 
     async def _connect(self, lock):
-        await self._find_dpm(lock)
+        await self._find_dpm()
 
         # Send an OPEN LIST request to the DPM.
 
