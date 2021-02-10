@@ -102,7 +102,7 @@ def marshal_Clock_enum(val):
     elif int(val) == 24689:
         return b'\x82\x60\x71'
     else:
-        raise ProtocolError('invalid value for enum 'Clock'')
+        raise ProtocolError("invalid value for enum 'Clock'")
 
 class EvState_struct:
     def __init__(self):
@@ -300,7 +300,7 @@ def unmarshal_Clock_enum(ii):
     elif val == 24689:
         return Clock_NML
     else:
-        raise ProtocolError('invalid value for enum 'Clock'')
+        raise ProtocolError("invalid value for enum 'Clock'")
 
 def unmarshal_EvState_struct(ii):
     nFlds = consumeRawInt(ii, 0x50)
