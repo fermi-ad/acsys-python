@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="acsys",
-    version="0.9.8",
+    version="0.9.9",
     author="Rich Neswold",
     author_email="neswold@fnal.gov",
     description="ACSys Client library",
@@ -20,6 +20,7 @@ setuptools.setup(
     ],
     install_requires=[
         'gssapi',
+        'nest_asyncio',
     ],
     python_requires='>=3.6',
 )
