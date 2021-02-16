@@ -136,9 +136,9 @@ occur.
                 assert isinstance(ii, syncd_protocol.Report_reply)
 
                 for jj in ii.events:
-                    delta = datetime.timedelta(seconds=jj.stamp // 1000)
-                    tz = datetime.timezone.utc
-                    stamp = datetime.datetime(1970, 1, 1, tzinfo=tz) + delta
+                    delta = datetime.timedelta(milliseconds=jj.stamp)
+                    epoch = datetime.datetime.utcfromtimestamp(0)
+                    stamp = epoch + delta
 
                     if hasattr(jj, 'state'):
                         yield StateEvent(stamp, jj.state.device_index,
