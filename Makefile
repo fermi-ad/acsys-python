@@ -1,9 +1,15 @@
-acsys.tgz : LICENSE README.md setup.py acsys/*py acsys/dpm/*.py acsys/sync/*.py
-	tar czf $@ $^
+build ::
+	python setup.py sdist
+
+all ::
+	python setup.py sdist bdist_wheel
+
+deploy : all
+	scp dist/* chablis:/usr/local/www/data/pip3/acsys/
 
 clean ::
 	find . -type f -name '*~' -delete
 	for ii in $$(find . -type d -name __pycache__); do \
 	  rm -rf $${ii}; \
 	done
-	rm -rf acsys.tgz __pycache__
+	rm -rf build dist __pycache__ acsys/acsys.egg-info .eggs
