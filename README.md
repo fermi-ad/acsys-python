@@ -1,27 +1,53 @@
-# ACSYS Python DPM Client
+# ACSys Python DPM Client
 
-## Building tarball
+`acsys` is the interface to Fermilab data acquisition and control.
+
+## Building
 
 Make sure `setup.py` has the correct version number.
 
-    make
+```bash
+make
+```
 
-will create `acsys.tgz`.
+will create a source distribution at `./dist`.
 
-## Installing
+This should only be used for development.
 
-This needs to be copied to the web server. Until this is automated,
-I'm copying it with the command
+```bash
+make all
+```
 
-    scp acsys.tgz chablis:/usr/local/www/data/pip3/acsys/acsys-VID.tgz
+The above will generate "built distributions" as well as the source distributions from `make`.
 
-Replace VID with the current version number in `setup.py`. Make sure
-to tag the project, too.
+## Deploying
 
-    git tag vVID
+```bash
+make deploy
+```
+
+The above will generate the distributions and push them to the AD Controls pip server.
 
 ## Development
+
+Start by installing development dependencies.
+
+```bash
+pip install -r requirements.txt
+```
 
 To test local modifications, use pip's editable mode.
 
 `pip install -e .`
+
+Make sure to use git to tag the version.
+
+```bash
+git tag vVID
+```
+
+And push the tags.
+
+```bash
+git push --tags
+```
