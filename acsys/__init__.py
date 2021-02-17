@@ -111,6 +111,19 @@ import socket
 import struct
 import acsys.status
 
+# https://packaging.python.org/guides/single-sourcing-package-version/#single-sourcing-the-version
+try:
+    from importlib import metadata
+except ImportError:
+    # Running on pre-3.8 Python; use importlib-metadata package
+    import importlib_metadata as metadata
+
+__version__ = metadata.version('acsys')
+__all__ = [
+    '__version__',
+    'acsys',
+]
+
 from acsys.status import ACNET_DISCONNECTED
 
 import nest_asyncio
