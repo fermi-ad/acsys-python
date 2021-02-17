@@ -29,7 +29,7 @@ class ClockEvent:
         return self._number
 
     def __str__(self):
-        return f'<TCLK event:{self.event}, stamp:{self.stamp}>'
+        return f'<TCLK event:{hex(self.event)}, stamp:{self.stamp}>'
 
 class StateEvent:
     """Simple class that holds state event information."""
