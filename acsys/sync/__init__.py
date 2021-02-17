@@ -146,7 +146,7 @@ occur.
                     else:
                         yield ClockEvent(stamp, jj.clock.event, jj.clock.number)
         except acsys.status.Status as e:
-            if e == acsys.status.ACNET_DISCONNETED:
+            if e == acsys.status.ACNET_DISCONNECTED:
                 raise
             _log.warning('lost connection with SYNC service')
             await asyncio.sleep(0.5)
