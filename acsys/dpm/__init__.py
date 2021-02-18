@@ -241,7 +241,7 @@ class DPM:
         # Check to see if we're running the script in debug mode. If
         # so, stretch the timeout for ACNET requests to 30 seconds.
 
-        if asyncio.get_running_loop().get_debug():
+        if asyncio.get_event_loop().get_debug():
             self.req_tmo = 30000
         else:
             self.req_tmo = 1000
