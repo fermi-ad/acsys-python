@@ -1,10 +1,7 @@
 build ::
 	python3 setup.py sdist
 
-all ::
-	python3 setup.py sdist bdist_wheel
-
-deploy : all
+deploy : build
 	scp dist/* chablis:/usr/local/www/data/pip3/acsys/
 
 clean ::
