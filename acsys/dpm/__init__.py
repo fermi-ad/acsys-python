@@ -361,9 +361,7 @@ class DPM:
         self._dev_list.get(tag)
 
     async def _retryable_request(self, msg):
-        retries = 1
-
-        while retries > 0:
+        for _tries in range(2):
             _, msg = await self.con.request_reply(self.dpm_task, msg,
                                                   timeout=self.req_tmo,
                                                   proto=dpm_protocol)
@@ -379,7 +377,6 @@ class DPM:
             # operation.
 
             _log.info(f'DPM({self.list_id}) retrying request: {msg}')
-            retries = retries - 1
 
         raise status.ACNET_REQTMO
 
