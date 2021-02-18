@@ -238,6 +238,14 @@ class DPM:
         self.can_set = False
         self.model = None
 
+        # Check to see if we're running the script in debug mode. If
+        # so, stretch the timeout for ACNET requests to 30 seconds.
+
+        if asyncio.get_running_loop().get_debug():
+            self.req_tmo = 30000
+        else:
+            self.req_tmo = 1000
+
     def _xlat_reply(self, msg):
         if isinstance(msg, Status_reply):
             return ItemStatus(msg.ref_id, msg.status)
@@ -335,7 +343,7 @@ class DPM:
         # Send an OPEN LIST request to the DPM.
 
         gen = self.con.request_stream(self.dpm_task, OpenList_request(),
-                                      proto=dpm_protocol)
+                                      timeout=self.req_tmo, proto=dpm_protocol)
         _, msg = await gen.asend(None)
         _log.info('DPM returned list id %d', msg.list_id)
 
