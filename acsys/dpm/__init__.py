@@ -360,6 +360,29 @@ class DPM:
         """
         self._dev_list.get(tag)
 
+    async def _retryable_request(self, msg):
+        retries = 1
+
+        while retries > 0:
+            _, msg = await self.con.request_reply(self.dpm_task, msg,
+                                                  timeout=self.req_tmo,
+                                                  proto=dpm_protocol)
+            sts = acsys.status.Status(msg.status)
+
+            if sts != status.ACNET_REQTMO:
+                if sts.isFatal:
+                    raise sts
+                else:
+                    return
+
+            # Received a request timeout. Log it and retry the
+            # operation.
+
+            _log.info(f'DPM({self.list_id}) retrying request: {msg}')
+            retries = retries - 1
+
+        raise status.ACNET_REQTMO
+
     async def clear_list(self):
         """Clears all entries in the tag/drf dictionary.
 
@@ -373,12 +396,7 @@ list, either '.stop()' or '.start()' needs to be called.
         async with self._state_sem:
             _log.debug('DPM(id: %d) clearing list', self.list_id)
             msg.list_id = self.list_id
-            _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                                  proto=dpm_protocol)
-            sts = acsys.status.Status(msg.status)
-
-            if sts.isFatal:
-                raise sts
+            await self._retryable_request(msg)
 
             # DPM has been updated so we can safely clear the dictionary.
 
@@ -396,12 +414,7 @@ list, either '.stop()' or '.start()' needs to be called.
         # status in the reply message, we raise it ourselves.
 
         _log.debug('DPM(id: %d) adding tag:%d, drf:%s', self.list_id, tag, drf)
-        _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                              proto=dpm_protocol)
-        sts = acsys.status.Status(msg.status)
-
-        if sts.isFatal:
-            raise sts
+        await self._retryable_request(msg)
 
         # DPM has been updated so we can safely add the entry to our
         # device list.
@@ -492,12 +505,7 @@ Data associated with the 'tag' will continue to be returned until the
                 msg.ref_id = tag
 
                 _log.debug('DPM(id: %d) removing tag:%d', self.list_id, tag)
-                _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                                      proto=dpm_protocol)
-                sts = acsys.status.Status(msg.status)
-
-                if sts.isFatal:
-                    raise sts
+                await self._retryable_request(msg)
 
                 # DPM has been updated so we can safely remove the
                 # entry from our device list.
@@ -514,12 +522,7 @@ Data associated with the 'tag' will continue to be returned until the
         if self.model:
             msg.model = self.model
 
-        _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                              proto=dpm_protocol)
-
-        sts = acsys.status.Status(msg.status)
-        if sts.isFatal:
-            raise sts
+        await self._retryable_request(msg)
         self.active = True
 
     async def start(self, model=None):
@@ -553,12 +556,7 @@ calling this method, a few readings may still get delivered.
         async with self._state_sem:
             _log.debug('DPM(id: %d) stopping list', self.list_id)
             msg.list_id = self.list_id
-            _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                                  proto=dpm_protocol)
-            sts = acsys.status.Status(msg.status)
-
-            if sts.isFatal:
-                raise sts
+            await self._retryable_request(msg)
             self.active = False
 
     async def _shutdown(self):
@@ -631,8 +629,7 @@ the role.
                     msg.list_id = self.list_id
                     msg.token = ctx.step()
 
-                    _, reply = await self.con.request_reply(self.dpm_task, msg,
-                                                            proto=dpm_protocol)
+                    await self._retryable_request(msg)
 
                     # Now that the context has been validated, send
                     # the 'EnableSettings' request with a signed
@@ -643,11 +640,7 @@ the role.
                     msg.message = b'1234'
                     msg.MIC = ctx.get_signature(msg.message)
 
-                    # XXX: Need to test for GSSAPI failures.
-
-                    _, reply = await self.con.request_reply(self.dpm_task, msg,
-                                                            proto=dpm_protocol)
-
+                    await self._retryable_request(msg)
                     self.can_set = True
                     _log.info('DPM(id: %d) settings enabled', self.list_id)
             finally:
@@ -687,13 +680,7 @@ the role.
                     msg.scaled_array.append(s)
 
             msg.list_id = self.list_id
-
-            _, reply = await self.con.request_reply(self.dpm_task, msg,
-                                                    proto=dpm_protocol)
-
-            sts = acsys.status.Status(reply.status)
-            if sts.isFatal:
-                raise sts
+            await self._retryable_request(msg)
 
 class DPMContext:
     def __init__(self, con, *, dpm_node='DPM01'):
