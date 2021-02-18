@@ -367,11 +367,10 @@ class DPM:
                                                   proto=dpm_protocol)
             sts = acsys.status.Status(msg.status)
 
-            if sts != status.ACNET_REQTMO:
-                if sts.isFatal:
-                    raise sts
-                else:
-                    return
+            if not sts.isFatal:
+                return
+            elif sts != status.ACNET_REQTMO:
+                raise sts
 
             # Received a request timeout. Log it and retry the
             # operation.
