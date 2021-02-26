@@ -6,6 +6,7 @@ import logging
 import getpass
 import os
 import acsys.dpm.dpm_protocol
+import acsys.status
 from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     AddToList_request, RemoveFromList_request,
                                     StartList_request, StopList_request,
@@ -322,8 +323,7 @@ class DPM:
             self._qrpy = []
             if self.can_set:
                 self.enable_settings()
-            for tag, drf in self._dev_list.items():
-                await self._add_to_list(lock, tag, drf)
+            await self._add_entries(lock, self._dev_list.items())
             if self.active:
                 await self.start(self.model)
 
@@ -454,26 +454,57 @@ is non-deterministic.
         else:
             raise ValueError('tag must be an integer')
 
+    # Private method which sends, concurrently, a list of DRF entries
+    # to DPM.
+
+    async def _add_entries(self, lock, entries):
+        async def xact(tag, drf):
+            try:
+                await self._add_to_list(lock, tag, drf)
+                return []
+            except acsys.status.Status as e:
+                return [(tag, e)]
+
+        result = []
+
+        # Break the list of entries into groups of, at most, 100
+        # entries.
+
+        chunks = [entries[ii:ii + 100] for ii in range(0, len(entries), 100)]
+        loop = asyncio.get_event_loop()
+        for chunk in chunks:
+
+            # Convert each entry in the chunk into a coroutine that
+            # performs the request.
+
+            batch = [loop.create_task(xact(tag, drf)) for tag, drf in chunk]
+
+            # Run all the coroutines at the same time and append the
+            # results to the total result.
+
+            for ii in asyncio.as_completed(batch):
+                result += await ii
+        return result
+
     async def add_entries(self, entries):
         """Adds multiple entries.
 
-This is just a convenience function to add a list of tag/drf pairs to
-a DPM list. If any of the entries is badly formed, an exception will
-be raised and the state of DPM will be in a part state of success.
-
-A future version of the DPM protocol will make this method much more
-reliable while maintaining its speed.
-
+This is a convenience function to add a list of tag/drf pairs to DPM's
+request list. It sends the requests in parallel so, if you have a
+large set of devices, this function should complete much faster than
+adding them one by one.
         """
+
+        # Validate the array of parameters.
+
+        for tag, drf in entries:
+            if not isinstance(tag, int):
+                raise ValueError(f'tag must be an integer -- found {tag}')
+            if not isinstance(drf, str):
+                raise ValueError('drf must be a string -- found {drf}')
+
         async with self._state_sem as lock:
-            for tag, drf in entries:
-                if isinstance(tag, int):
-                    if isinstance(drf, str):
-                        await self._add_to_list(lock, tag, drf)
-                    else:
-                        raise ValueError('drf must be a string')
-                else:
-                    raise ValueError('tag must be an integer')
+            return (await self._add_entries(lock, entries))
 
     async def remove_entry(self, tag):
         """Removes an entry from the list of devices to be acquired.
