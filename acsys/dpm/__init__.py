@@ -369,7 +369,7 @@ class DPM:
 
             if not sts.isFatal:
                 return
-            elif sts != status.ACNET_REQTMO:
+            elif sts != acsys.status.ACNET_REQTMO:
                 raise sts
 
             # Received a request timeout. Log it and retry the
@@ -377,7 +377,7 @@ class DPM:
 
             _log.info(f'DPM({self.list_id}) retrying request: {msg}')
 
-        raise status.ACNET_REQTMO
+        raise acsys.status.ACNET_REQTMO
 
     async def clear_list(self):
         """Clears all entries in the tag/drf dictionary.
