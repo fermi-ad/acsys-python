@@ -710,6 +710,23 @@ the role.
             await self._retryable_request(msg)
 
 class DPMContext:
+    """Creates a communication context with one DPM (of a pool of DPMs.)
+This context should be used in an `async-with-statement` so that
+resources are properly released when the block is exited.
+
+    async with DpmContext(con) as dpm:
+        # 'dpm' is an instance of DPM and is usable while
+        # in this block.
+
+Creating a DPM context isn't a trivial process, so it should be done
+at a higher level - preferrably as the script starts up. If a specific
+DPM node isn't required, the context will do a service discovery to
+choose an available DPM. Future versions of this package may move the
+Kerberos negotiation into this section as well, instead of hiding it
+in `.settings_enable()`, so it will be even more expensive.
+
+    """
+
     def __init__(self, con, *, dpm_node='DPM01'):
         self.dpm = DPM(con, dpm_node)
 
