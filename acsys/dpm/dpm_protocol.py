@@ -39,7 +39,8 @@ __all__ = ['ProtocolError',
            'DigitalAlarm_reply',
            'BasicStatus_reply',
            'TimedScalarArray_reply',
-           'ApplySettings_reply']
+           'ApplySettings_reply',
+           'Authenticate_reply']
 
 import struct
 
@@ -995,6 +996,33 @@ class ApplySettings_reply:
         return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x43\xc0\x51\x02\x12\x44\x54',
                      marshal_array(marshal_SettingStatus_struct, self.status))
 
+class Authenticate_reply:
+
+    def __eq__(self, other):
+        return ((not hasattr(self, 'serviceName') and not hasattr(other, 'serviceName')) or \
+            (hasattr(self, 'serviceName') and hasattr(other, 'serviceName') and \
+             self.serviceName == other.serviceName)) and \
+            ((not hasattr(self, 'token') and not hasattr(other, 'token')) or \
+            (hasattr(self, 'token') and hasattr(other, 'token') and \
+             self.token == other.token))
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def marshal(self):
+        """Returns a generator that emits a character stream representing
+           the marshaled contents of Authenticate_reply."""
+        return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x1c\x76',
+                     emitRawInt(0x50, 0 \
+                        + (2 if hasattr(self, 'serviceName') else 0) \
+                        + (2 if hasattr(self, 'token') else 0)),
+                     chain(b'\x12\x63\x38',
+                           marshal_string(self.serviceName)) \
+                           if hasattr(self, 'serviceName') else b'',
+                     chain(b'\x12\x8d\xa1',
+                           marshal_binary(self.token)) \
+                           if hasattr(self, 'token') else b'')
+
 def marshal_request(val):
     return val.marshal()
 
@@ -1675,6 +1703,22 @@ def unmarshal_ApplySettings_reply(ii):
                 raise ProtocolError("unknown field found")
         return tmp
 
+def unmarshal_Authenticate_reply(ii):
+    nFlds = consumeRawInt(ii, 0x50)
+    if (nFlds % 2) != 0 or nFlds < 0 or nFlds > 4:
+        raise ProtocolError("incorrect number of fields")
+    else:
+        tmp = Authenticate_reply()
+        for xx in range(nFlds // 2):
+            fld = consumeRawInt(ii, 0x10)
+            if fld == 25400:
+                tmp.serviceName = unmarshal_string(ii)
+            elif fld == -29279:
+                tmp.token = unmarshal_binary(ii)
+            else:
+                raise ProtocolError("unknown field found")
+        return tmp
+
 def unmarshal_request(ii):
     """Attempts to unmarshal a request message from the specified
        generator, ii. If an error occurs, the ProtocolError exception
@@ -1750,6 +1794,8 @@ def unmarshal_reply(ii):
             return unmarshal_TimedScalarArray_reply(ii)
         elif msg == 17344:
             return unmarshal_ApplySettings_reply(ii)
+        elif msg == 7286:
+            return unmarshal_Authenticate_reply(ii)
         else:
             raise ProtocolError("unknown reply type")
     except StopIteration:
