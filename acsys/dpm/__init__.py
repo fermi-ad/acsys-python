@@ -748,7 +748,7 @@ in `.settings_enable()`, so it will be even more expensive.
 
     """
 
-    def __init__(self, con, *, dpm_node='DPM01'):
+    def __init__(self, con, *, dpm_node=None):
         self.dpm = DPM(con, dpm_node)
 
     async def __aenter__(self):
