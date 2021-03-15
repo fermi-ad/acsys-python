@@ -317,6 +317,20 @@ class DPM:
                          str(self.list_id))
             await self._restore_state()
 
+    async def replies(self, tmo=None):
+        """Returns an async generator which yields each reply from DPM. The
+optional `tmo` parameter indicates how long to wait between replies
+before an `asyncio.TimeoutError` is raised.
+
+This method is the preferred way to iterate over DPM replies.
+
+        """
+        while True:
+            ii = await asyncio.wait_for(self.__anext__(), tmo)
+            if ii is None:
+                return
+            yield ii
+
     async def _restore_state(self):
         async with self._state_sem as lock:
             await self._connect(lock)
