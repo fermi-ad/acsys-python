@@ -19,7 +19,7 @@ from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     TextArray_reply, Text_reply,
                                     ListStatus_reply, ApplySettings_reply,
                                     Authenticate_request, EnableSettings_request,
-                                    TimedScalarArray_reply)
+                                    TimedScalarArray_reply, Authenticate_reply)
 
 _log = logging.getLogger('acsys')
 
@@ -607,6 +607,22 @@ calling this method, a few readings may still get delivered.
         set_struct.data = value
         return set_struct
 
+    # Performs one round-trip of the Kerberos validation.
+
+    async def _auth_step(self, tok):
+        _log.info(f'auth step with {tok}')
+        msg = Authenticate_request()
+        msg.list_id = self.list_id
+        if tok is not None:
+            msg.token = tok
+
+        _, msg = await self.con.request_reply(self.dpm_task, msg,
+                                              timeout=self.req_tmo,
+                                              proto=dpm_protocol)
+        if not isinstance(msg, Authenticate_reply):
+            raise TypeError('unexpected protocol message')
+        return msg
+
     async def enable_settings(self, role=None):
         """Enable settings for the current DPM session.
 
@@ -637,7 +653,9 @@ the role.
         try:
             # Create a security context used to sign messages.
 
-            service_name = gssapi.Name('daeset/bd/dce01.fnal.gov')
+            msg = await self._auth_step(None)
+            service_name = gssapi.Name(msg.serviceName.translate({ord('@'): '/', ord('\\'): None}))
+            _log.info(f'service name: {service_name}')
             ctx = gssapi.SecurityContext(name=service_name, usage='initiate',
                                          creds=creds,
                                          flags=[RequirementFlag.replay_detection,
@@ -649,14 +667,17 @@ the role.
                     if role is not None:
                         await self._add_to_list(lock, 0, f'#ROLE:{role}')
 
-                    # First send an Authentication request so DPM can
-                    # validate the context.
+                    # Enter a loop which steps the security context to
+                    # completion (or an error occurs.)
 
-                    msg = Authenticate_request()
-                    msg.list_id = self.list_id
-                    msg.token = ctx.step()
+                    in_tok = None
+                    while not ctx.complete:
+                        msg = await self._auth_step(bytearray(ctx.step(in_tok)))
 
-                    await self._retryable_request(msg)
+                        if not hasattr(msg, 'token'):
+                            break
+
+                        in_tok = msg.token
 
                     # Now that the context has been validated, send
                     # the 'EnableSettings' request with a signed
