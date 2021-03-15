@@ -117,7 +117,6 @@ The index of each timestamp cooresponds to the same index in 'data'.
 
         if self.micros:
             return f'{guaranteed_fields}, micros: {self.micros}'
-
         return f'{guaranteed_fields}}}'
 
     def isReadingFor(self, tag):
@@ -190,8 +189,7 @@ error occurred while querying, None is returned.
 
         if e != acsys.status.ACNET_UTIME:
             raise
-        else:
-            return None
+        return None
 
 async def available_dpms(con):
     """Find active DPMs.
@@ -250,36 +248,35 @@ class DPM:
     def _xlat_reply(self, msg):
         if isinstance(msg, Status_reply):
             return ItemStatus(msg.ref_id, msg.status)
-        elif isinstance(msg, (AnalogAlarm_reply,
-                              DigitalAlarm_reply,
-                              BasicStatus_reply)):
+        if isinstance(msg, (AnalogAlarm_reply,
+                            DigitalAlarm_reply,
+                            BasicStatus_reply)):
             return ItemData(msg.ref_id, msg.timestamp, msg.__dict__,
                             meta=self.meta.get(msg.ref_id, {}))
-        elif isinstance(msg, (Raw_reply,
-                              ScalarArray_reply,
-                              Scalar_reply,
-                              TextArray_reply,
-                              Text_reply)):
+        if isinstance(msg, (Raw_reply,
+                            ScalarArray_reply,
+                            Scalar_reply,
+                            TextArray_reply,
+                            Text_reply)):
             return ItemData(msg.ref_id, msg.timestamp, msg.data,
                             meta=self.meta.get(msg.ref_id, {}))
-        elif isinstance(msg, ApplySettings_reply):
+        if isinstance(msg, ApplySettings_reply):
             for reply in msg.status:
                 self._qrpy.append(ItemStatus(reply.ref_id, reply.status))
             return self._qrpy.pop(0) if len(self._qrpy) > 0 else None
-        elif isinstance(msg, ListStatus_reply):
+        if isinstance(msg, ListStatus_reply):
             return None
-        elif isinstance(msg, DeviceInfo_reply):
+        if isinstance(msg, DeviceInfo_reply):
             self.meta[msg.ref_id] = \
                 { 'di': msg.di, 'name': msg.name,
                   'desc': msg.description,
                   'units': msg.units if hasattr(msg, 'units') else None,
                   'format_hint': msg.format_hint if hasattr(msg, 'format_hint') else None }
-        elif isinstance(msg, TimedScalarArray_reply):
+        if isinstance(msg, TimedScalarArray_reply):
             return ItemData(msg.ref_id, msg.timestamp, msg.data,
                             meta=self.meta.get(msg.ref_id, {}),
                             micros=msg.micros)
-        else:
-            return msg
+        return msg
 
     def __aiter__(self):
         return self
@@ -289,17 +286,17 @@ class DPM:
             try:
                 if len(self._qrpy) > 0:
                     return self._qrpy.pop(0)
-                else:
-                    _, msg = await self.gen.__anext__()
-                    msg = self._xlat_reply(msg)
 
-                    # If the message is not None, return it. If it is
-                    # None, start at the top of the loop.
+                _, msg = await self.gen.__anext__()
+                msg = self._xlat_reply(msg)
 
-                    if msg is not None:
-                        return msg
-                    else:
-                        continue
+                # If the message is not None, return it. If it is
+                # None, start at the top of the loop.
+
+                if msg is not None:
+                    return msg
+                continue
+
             except acsys.status.Status as e:
 
                 # If we're disconnected from ACNET, re-throw the
@@ -383,7 +380,7 @@ This method is the preferred way to iterate over DPM replies.
 
             if not sts.isFatal:
                 return
-            elif sts != acsys.status.ACNET_REQTMO:
+            if sts != acsys.status.ACNET_REQTMO:
                 raise sts
 
             # Received a request timeout. Log it and retry the
@@ -661,7 +658,7 @@ the role.
 
         if principal[1] != 'FNAL.GOV':
             raise ValueError('invalid Kerberos realm')
-        elif creds.lifetime <= 0:
+        if creds.lifetime <= 0:
             raise ValueError('Kerberos ticket expired')
 
         try:
