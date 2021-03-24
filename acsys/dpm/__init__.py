@@ -5,7 +5,7 @@ from gssapi.raw.types import RequirementFlag
 import logging
 import getpass
 import os
-import acsys.dpm.dpm_protocol
+import acsys.dpm.dpm_protocol as dpm_protocol
 import acsys.status
 from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     AddToList_request, RemoveFromList_request,
