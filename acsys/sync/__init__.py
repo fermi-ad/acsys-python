@@ -1,7 +1,7 @@
 import datetime
 import asyncio
 import logging
-import acsys.sync.syncd_protocol
+import acsys.status as status
 
 _log = logging.getLogger('acsys')
 
@@ -69,8 +69,8 @@ async def find_service(con, clock=syncd_protocol.Clock_Tclk, node=None):
         replier, _ = await con.request_reply(task, msg, timeout=150,
                                              proto=syncd_protocol)
         return (await con.get_name(replier))
-    except acsys.status.Status as e:
-        if e != acsys.status.ACNET_UTIME:
+    except status.Status as e:
+        if e != status.ACNET_UTIME:
             raise
         else:
             return None
@@ -90,8 +90,8 @@ no nodes are found, an empty list is returned.
     try:
         async for replier, _ in gen:
             result.append(await con.get_name(replier))
-    except acsys.status.Status as e:
-        if e != acsys.status.ACNET_UTIME:
+    except status.Status as e:
+        if e != status.ACNET_UTIME:
             raise
     return result
 
@@ -124,7 +124,7 @@ occur.
         if sync_node is None:
             node = await find_service(con, clock=clock, node=sync_node)
             if node is None:
-                raise acsys.status.ACNET_NO_NODE
+                raise status.ACNET_NO_NODE
         else:
             node = sync_node
 
@@ -145,8 +145,8 @@ occur.
                                          jj.state.value)
                     else:
                         yield ClockEvent(stamp, jj.clock.event, jj.clock.number)
-        except acsys.status.Status as e:
-            if e == acsys.status.ACNET_DISCONNECTED:
+        except status.Status as e:
+            if e == status.ACNET_DISCONNECTED:
                 raise
             _log.warning('lost connection with SYNC service')
             await asyncio.sleep(0.5)

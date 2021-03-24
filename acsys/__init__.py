@@ -109,7 +109,7 @@ import logging
 import array
 import socket
 import struct
-import acsys.status
+import acsys.status as status
 
 # https://packaging.python.org/guides/single-sourcing-package-version/#single-sourcing-the-version
 try:
@@ -369,7 +369,7 @@ one indirectly through `acsys.run_client()`.
             while True:
                 try:
                     return await self.protocol.xact(buf)
-                except acsys.status.Status as sts:
+                except status.Status as sts:
                     if sts != ACNET_DISCONNECTED or (self.protocol is None):
                         raise
                 self.protocol = None
@@ -740,8 +740,8 @@ raise an ACSys Status code.
         try:
             await self.request_reply('ACNET@' + node, b'\x00\x00', timeout=250)
             return True
-        except acsys.status.Status as e:
-            if e == acsys.status.ACNET_REQTMO:
+        except status.Status as e:
+            if e == status.ACNET_REQTMO:
                 return False
             else:
                 raise e
