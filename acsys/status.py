@@ -36,9 +36,13 @@ class Status(Exception):
         """Returns True if the status represents a warning status."""
         return self.errCode > 0
 
-    def __eq__(self, other): return self.value == other.value
+    def __eq__(self, other):
+        return self.value == other.value \
+            if isinstance(other, Status) else False
 
-    def __ne__(self, other): return self.value != other.value
+    def __ne__(self, other):
+        return self.value != other.value \
+            if isinstance(other, Status) else True
 
     def __str__(self):
         return '[' + str(self.facility) + ' ' + str(self.errCode) + ']'
