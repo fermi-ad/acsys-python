@@ -5,7 +5,6 @@ from gssapi.raw.types import RequirementFlag
 import logging
 import getpass
 import os
-import acsys.dpm.dpm_protocol as dpm_protocol
 import acsys.status
 from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     AddToList_request, RemoveFromList_request,
@@ -179,7 +178,7 @@ error occurred while querying, None is returned.
     msg = ServiceDiscovery_request()
     try:
         replier, _ = await con.request_reply(task, msg, timeout=150,
-                                             proto=dpm_protocol)
+                                             proto=acsys.dpm.dpm_protocol)
         return (await con.get_name(replier))
     except acsys.status.Status as e:
         # An ACNET UTIME status is what we receive when no replies
@@ -200,7 +199,7 @@ running, the list will be empty.
     """
     result = []
     msg = ServiceDiscovery_request()
-    gen = con.request_stream('DPMD@MCAST', msg, proto=dpm_protocol, timeout=150)
+    gen = con.request_stream('DPMD@MCAST', msg, proto=acsys.dpm.dpm_protocol, timeout=150)
     try:
         async for replier, _ in gen:
             result.append(await con.get_name(replier))
@@ -354,7 +353,7 @@ This method is the preferred way to iterate over DPM replies.
         # Send an OPEN LIST request to the DPM.
 
         gen = self.con.request_stream(self.dpm_task, OpenList_request(),
-                                      timeout=self.req_tmo, proto=dpm_protocol)
+                                      timeout=self.req_tmo, proto=acsys.dpm.dpm_protocol)
         _, msg = await gen.asend(None)
         _log.info('DPM returned list id %d', msg.list_id)
 
@@ -375,7 +374,7 @@ This method is the preferred way to iterate over DPM replies.
         for _tries in range(2):
             _, msg = await self.con.request_reply(self.dpm_task, msg,
                                                   timeout=self.req_tmo,
-                                                  proto=dpm_protocol)
+                                                  proto=acsys.dpm.dpm_protocol)
             sts = acsys.status.Status(msg.status)
 
             if not sts.isFatal:
@@ -629,7 +628,7 @@ calling this method, a few readings may still get delivered.
 
         _, msg = await self.con.request_reply(self.dpm_task, msg,
                                               timeout=self.req_tmo,
-                                              proto=dpm_protocol)
+                                              proto=acsys.dpm.dpm_protocol)
         if not isinstance(msg, Authenticate_reply):
             raise TypeError('unexpected protocol message')
         return msg
