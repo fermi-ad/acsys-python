@@ -21,7 +21,7 @@ from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     Authenticate_request, EnableSettings_request,
                                     TimedScalarArray_reply, Authenticate_reply)
 
-_log = logging.getLogger('acsys')
+_log = logging.getLogger(__name__)
 
 class _ItemCommon:
     """Base class that defines common attributes of ItemData and

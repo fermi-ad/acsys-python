@@ -129,7 +129,7 @@ from acsys.status import ACNET_DISCONNECTED
 import nest_asyncio
 nest_asyncio.apply()
 
-_log = logging.getLogger('acsys')
+_log = logging.getLogger(__name__)
 
 # This map and the two following functions define a framework which
 # decodes incoming ACK packets.
