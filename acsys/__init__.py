@@ -121,7 +121,7 @@ except ImportError:
 __version__ = metadata.version('acsys')
 __all__ = [
     '__version__',
-    'acsys',
+    'Connection',
 ]
 
 from acsys.status import ACNET_DISCONNECTED
