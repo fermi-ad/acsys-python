@@ -228,7 +228,7 @@ class __AcnetdProtocol(asyncio.Protocol):
                     # with the request ID
 
                     f = self._rpy_map.get(reqid)
-                    if f:
+                    if f is not None:
                         # If bit 0 is clear, this is the last reply so
                         # we remove the entry from the map.
 
