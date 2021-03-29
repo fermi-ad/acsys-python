@@ -214,9 +214,12 @@ class __AcnetdProtocol(asyncio.Protocol):
 
                 # Split out the interesting fields of the ACSys header.
 
-                (flg, sts, t, n, reqid) = struct.unpack('<HhBB8xH', pkt[2:18])
-                replier = t * 256 + n
-                last = (flg & 1) == 0
+                sts = pkt[5] * 256 + pkt[4]
+                if sts >= 0x8000:
+                    sts -= 0x10000
+                replier = pkt[6] * 256 + pkt[7]
+                reqid = pkt[17] * 256 + pkt[16]
+                last = (pkt[2] & 1) == 0
                 sts = status.Status(sts)
 
                 if sts != status.ACNET_PEND:
