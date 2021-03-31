@@ -305,6 +305,9 @@ class DPM:
                 if e == acsys.status.ACNET_DISCONNECTED:
                     raise
 
+            except GeneratorExit:
+                raise
+
             # If we've reached here, DPM returned a fatal ACNET
             # status. Whatever it was, we need to pick another DPM and
             # add all the current requests.
@@ -321,11 +324,14 @@ before an `asyncio.TimeoutError` is raised.
 This method is the preferred way to iterate over DPM replies.
 
         """
-        while True:
-            ii = await asyncio.wait_for(self.__anext__(), tmo)
-            if ii is None:
-                return
-            yield ii
+        try:
+            while True:
+                ii = await asyncio.wait_for(self.__anext__(), tmo)
+                if ii is None:
+                    return
+                yield ii
+        except GeneratorExit:
+            raise
 
     async def _restore_state(self):
         async with self._state_sem as lock:
@@ -620,18 +626,30 @@ calling this method, a few readings may still get delivered.
     # Performs one round-trip of the Kerberos validation.
 
     async def _auth_step(self, tok):
-        _log.info(f'auth step with {tok}')
-        msg = Authenticate_request()
-        msg.list_id = self.list_id
-        if tok is not None:
-            msg.token = tok
+        while True:
+            msg = Authenticate_request()
+            msg.list_id = self.list_id
+            if tok is not None:
+                msg.token = tok
 
-        _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                              timeout=self.req_tmo,
-                                              proto=acsys.dpm.dpm_protocol)
-        if not isinstance(msg, Authenticate_reply):
-            raise TypeError('unexpected protocol message')
-        return msg
+            rnode, msg = await self.con.request_reply(self.dpm_task, msg,
+                                                      timeout=self.req_tmo,
+                                                      proto=acsys.dpm.dpm_protocol)
+            if isinstance(msg, Status_reply):
+                if rnode != 3503:
+                    _log.info(f'{self.dpm_task} uses old KRB; switch to DPM01')
+                    self.desired_node = 'DPM01'
+                    await self._restore_state()
+                    continue
+                else:
+                    msg = Authenticate_reply()
+                    msg.serviceName = 'daeset/bd@dce01.fnal.gov'
+                    msg.token = b''
+                    return msg
+
+            if not isinstance(msg, Authenticate_reply):
+                raise TypeError(f'unexpected protocol message: %{msg}')
+            return msg
 
     async def enable_settings(self, role=None):
         """Enable settings for the current DPM session.

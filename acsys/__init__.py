@@ -724,6 +724,8 @@ isn't an integer, ValueError is raised.
                     yield (snd, msg)
                 else:
                     raise sts
+        except GeneratorExit:
+            raise
         finally:
             # If this generator exits for any reason, cancel the
             # associated request.
