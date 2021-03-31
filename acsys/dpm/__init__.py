@@ -331,7 +331,7 @@ This method is the preferred way to iterate over DPM replies.
                     return
                 yield ii
         except GeneratorExit:
-            raise
+            pass
 
     async def _restore_state(self):
         async with self._state_sem as lock:
