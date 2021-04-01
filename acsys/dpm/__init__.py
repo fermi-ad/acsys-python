@@ -306,7 +306,7 @@ class DPM:
                     raise
 
             except GeneratorExit:
-                raise
+                pass
 
             # If we've reached here, DPM returned a fatal ACNET
             # status. Whatever it was, we need to pick another DPM and

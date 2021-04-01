@@ -725,7 +725,7 @@ isn't an integer, ValueError is raised.
                 else:
                     raise sts
         except GeneratorExit:
-            raise
+            pass
         finally:
             # If this generator exits for any reason, cancel the
             # associated request.
