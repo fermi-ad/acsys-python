@@ -637,8 +637,8 @@ calling this method, a few readings may still get delivered.
                                                       proto=acsys.dpm.dpm_protocol)
             if isinstance(msg, Status_reply):
                 if rnode != 3503:
-                    _log.info(f'{self.dpm_task} uses old KRB; switch to DPM01')
-                    self.desired_node = 'DPM01'
+                    _log.info(f'{self.dpm_task} uses old KRB; switch to DPM02')
+                    self.desired_node = 'DPM02'
                     await self._restore_state()
                     continue
                 else:
