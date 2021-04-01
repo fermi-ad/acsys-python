@@ -764,22 +764,30 @@ async def _create_socket():
                                                 sock=s)
         return proto
 
-async def __client_main(main, **args):
+async def __client_main(main, **kwargs):
     con = await Connection.create()
     try:
-        await main(con, **args)
+        await main(con, **kwargs)
     finally:
         del con
 
-def run_client(main, **args):
+def run_client(main, **kwargs):
     """Starts an asynchronous session for ACSys clients.
 
-This function starts up an ACSys session. `main` is an async function
-which will receive a fully initialized Connection object. When 'main'
-resolves, this function will return.
+This function starts up an ACSys session. The parameter , `main`, is
+an async function with the signature:
+
+    async def main(con, **kwargs):
+
+This function will be passed `con` -- a fully initialized `Connection`
+object. It will also get passed `kwargs`.
+
+When 'main()' resolves, `run_client()` will return the value returned
+by `main()`.
+
     """
     loop = asyncio.get_event_loop()
-    client_fut = asyncio.Task(__client_main(main, **args))
+    client_fut = asyncio.Task(__client_main(main, **kwargs))
     try:
         loop.run_until_complete(client_fut)
     except:
