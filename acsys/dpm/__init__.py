@@ -112,10 +112,10 @@ The index of each timestamp cooresponds to the same index in 'data'.
         return self._micros
 
     def __str__(self):
-        guaranteed_fields = f'{{ tag: {self.tag}, stamp: {self.stamp}, data: {self.data}, meta: {self.meta} }}'
+        guaranteed_fields = f'{{ tag: {self.tag}, stamp: {self.stamp}, data: {self.data}, meta: {self.meta}'
 
         if self.micros:
-            return f'{guaranteed_fields}, micros: {self.micros}'
+            return f'{guaranteed_fields}, micros: {self.micros}}}'
         return f'{guaranteed_fields}}}'
 
     def isReadingFor(self, tag):
