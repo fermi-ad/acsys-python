@@ -271,6 +271,7 @@ class DPM:
                   'desc': msg.description,
                   'units': msg.units if hasattr(msg, 'units') else None,
                   'format_hint': msg.format_hint if hasattr(msg, 'format_hint') else None }
+            return None
         if isinstance(msg, TimedScalarArray_reply):
             return ItemData(msg.ref_id, msg.timestamp, msg.data,
                             meta=self.meta.get(msg.ref_id, {}),
