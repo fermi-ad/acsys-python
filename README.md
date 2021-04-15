@@ -2,6 +2,24 @@
 
 `acsys` is the interface to Fermilab data acquisition and control.
 
+## Installing
+
+`acsys` is available via a Fermi hosted pip repository.
+
+```bash
+pip install acsys
+```
+
+The command above will get you up and going quickly. See usage examples in the [wiki](https://github.com/fermi-controls/acsys-python/wiki).
+
+If you need to perform settings, authentication is required and thus the `gssapi` authentication library.
+
+```bash
+pip install 'acsys[settings]'
+```
+
+Note: This package only authenticates you as a user. There are other requirements to be able to set devices. Please make a request to the Controls Department for setting access.
+
 ## Building
 
 Make sure `setup.py` has the correct version number.

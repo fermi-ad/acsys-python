@@ -1,10 +1,10 @@
 import datetime
 import asyncio
-import gssapi
-from gssapi.raw.types import RequirementFlag
+import importlib
 import logging
 import getpass
 import os
+import sys
 import acsys.status
 from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     AddToList_request, RemoveFromList_request,
@@ -21,6 +21,7 @@ from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     TimedScalarArray_reply, Authenticate_reply)
 
 _log = logging.getLogger(__name__)
+
 
 class _ItemCommon:
     """Base class that defines common attributes of ItemData and
@@ -46,6 +47,7 @@ field matches the parameter 'tag'.
 
         """
         return False
+
 
 class ItemData(_ItemCommon):
     """An object that holds a reading from a device.
@@ -121,6 +123,7 @@ The index of each timestamp cooresponds to the same index in 'data'.
     def isReadingFor(self, tag):
         return self.tag == tag
 
+
 class ItemStatus(_ItemCommon):
     """An object reporting status of an item in a DPM list.
 
@@ -154,6 +157,7 @@ result of a setting.
 
     def isStatusFor(self, tag):
         return self.tag == tag
+
 
 async def find_dpm(con, *, node=None):
     """Use Service Discovery to find an available DPM.
@@ -190,6 +194,7 @@ error occurred while querying, None is returned.
             raise
         return None
 
+
 async def available_dpms(con):
     """Find active DPMs.
 
@@ -199,7 +204,8 @@ running, the list will be empty.
     """
     result = []
     msg = ServiceDiscovery_request()
-    gen = con.request_stream('DPMD@MCAST', msg, proto=acsys.dpm.dpm_protocol, timeout=150)
+    gen = con.request_stream(
+        'DPMD@MCAST', msg, proto=acsys.dpm.dpm_protocol, timeout=150)
     try:
         async for replier, _ in gen:
             result.append(await con.get_name(replier))
@@ -212,6 +218,7 @@ running, the list will be empty.
         if e != acsys.status.ACNET_UTIME:
             raise
     return result
+
 
 class DPM:
     def __init__(self, con, node):
@@ -267,10 +274,10 @@ class DPM:
             return None
         if isinstance(msg, DeviceInfo_reply):
             self.meta[msg.ref_id] = \
-                { 'di': msg.di, 'name': msg.name,
-                  'desc': msg.description,
-                  'units': msg.units if hasattr(msg, 'units') else None,
-                  'format_hint': msg.format_hint if hasattr(msg, 'format_hint') else None }
+                {'di': msg.di, 'name': msg.name,
+                 'desc': msg.description,
+                 'units': msg.units if hasattr(msg, 'units') else None,
+                 'format_hint': msg.format_hint if hasattr(msg, 'format_hint') else None}
             return None
         if isinstance(msg, TimedScalarArray_reply):
             return ItemData(msg.ref_id, msg.timestamp, msg.data,
@@ -668,6 +675,22 @@ the role.
 
         """
 
+        # Lazy load the gssapi library so that this doesn't block users
+        # who are only doing readings.
+        spec = importlib.util.find_spec('gssapi')
+        if spec is None:
+            _log.error('Cannot find the gssapi module')
+            print('To enable settings, the "gssapi" module must be installed.')
+            print(('Run `pip install "acsys[settings]"` '
+                   'to install the required library.'))
+            sys.exit(1)
+
+        # Perform the actual import
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        gssapi = importlib.import_module('gssapi')
+        RequirementFlag = gssapi.raw.types.RequirementFlag
+
         # Get the user's Kerberos credentials. Make sure they are from,
         # the FNAL.GOV realm and they haven't expired.
 
@@ -683,7 +706,8 @@ the role.
             # Create a security context used to sign messages.
 
             msg = await self._auth_step(None)
-            service_name = gssapi.Name(msg.serviceName.translate({ord('@'): '/', ord('\\'): None}))
+            service_name = gssapi.Name(msg.serviceName.translate(
+                {ord('@'): '/', ord('\\'): None}))
             _log.info(f'service name: {service_name}')
             ctx = gssapi.SecurityContext(name=service_name, usage='initiate',
                                          creds=creds,
@@ -758,6 +782,7 @@ the role.
 
             msg.list_id = self.list_id
             await self._retryable_request(msg)
+
 
 class DPMContext:
     """Creates a communication context with one DPM (of a pool of DPMs.)
