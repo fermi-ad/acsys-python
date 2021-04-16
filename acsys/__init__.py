@@ -373,9 +373,9 @@ one indirectly through `acsys.run_client()`.
                 try:
                     return await self.protocol.xact(buf)
                 except status.Status as sts:
-                    if sts != ACNET_DISCONNECTED or (self.protocol is None):
-                        raise
-                self.protocol = None
+                    if sts == ACNET_DISCONNECTED and (self.protocol is not None):
+                        self.protocol = None
+                    raise
         else:
             raise ACNET_DISCONNECTED
 
