@@ -760,8 +760,7 @@ async def _create_socket():
     else:
         loop = asyncio.get_event_loop()
         _log.debug('creating ACSys transport')
-        _, proto = await loop.create_connection(lambda: __AcnetdProtocol(),
-                                                sock=s)
+        _, proto = await loop.create_connection(__AcnetdProtocol, sock=s)
         return proto
 
 async def __client_main(main, **kwargs):
