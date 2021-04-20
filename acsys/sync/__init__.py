@@ -1,11 +1,11 @@
 import datetime
 import asyncio
 import logging
-import acsys
-import acsys.status as status
-import acsys.sync.syncd_protocol as syncd_protocol
+import acsys.status
+from acsys.sync.syncd_protocol import (Clock_Tclk, Discover_request,
+                                       Register_request, Report_reply)
 
-_log = logging.getLogger('acsys')
+_log = logging.getLogger(__name__)
 
 class ClockEvent:
     """Simple class that holds clock event information."""
@@ -59,25 +59,25 @@ class StateEvent:
     def __str__(self):
         return f'<STATE di:{self.di}, value:{self.value}, stamp:{self.stamp}>'
 
-async def find_service(con, clock=syncd_protocol.Clock_Tclk, node=None):
+async def find_service(con, clock=Clock_Tclk, node=None):
     """Use Service Discovery to find an available SYNCD service.
 
     """
 
     task = 'SYNC@' + (node or 'MCAST')
-    msg = syncd_protocol.Discover_request()
+    msg = Discover_request()
     msg.clock = clock
     try:
         replier, _ = await con.request_reply(task, msg, timeout=150,
-                                             proto=syncd_protocol)
+                                             proto=acsys.sync.syncd_protocol)
         return (await con.get_name(replier))
-    except status.Status as e:
-        if e != status.ACNET_UTIME:
+    except acsys.status.Status as e:
+        if e != acsys.status.ACNET_UTIME:
             raise
         else:
             return None
 
-async def get_available(con, clock=syncd_protocol.Clock_Tclk):
+async def get_available(con, clock=Clock_Tclk):
     """Find active SYNCD services.
 
 Returns a list containing ACNET nodes tha support the SYNC service. If
@@ -85,19 +85,19 @@ no nodes are found, an empty list is returned.
 
     """
     result = []
-    msg = syncd_protocol.Discover_request()
+    msg = Discover_request()
     msg.clock = clock
-    gen = con.request_stream('SYNC@MCAST', msg, proto=syncd_protocol,
+    gen = con.request_stream('SYNC@MCAST', msg, proto=acsys.sync.syncd_protocol,
                              timeout=150)
     try:
         async for replier, _ in gen:
             result.append(await con.get_name(replier))
-    except status.Status as e:
-        if e != status.ACNET_UTIME:
+    except acsys.status.Status as e:
+        if e != acsys.status.ACNET_UTIME:
             raise
     return result
 
-async def get_events(con, ev_str, sync_node=None, clock=syncd_protocol.Clock_Tclk):
+async def get_events(con, ev_str, sync_node=None, clock=Clock_Tclk):
     """Returns an async generator that yields event information.
 
 'con' is an acsys.Connection object. 'ev_str' is a list of
@@ -119,23 +119,23 @@ occur.
 
     # Build the request message.
 
-    msg = syncd_protocol.Register_request()
+    msg = Register_request()
     msg.evTclk = ev_str
 
     while True:
         if sync_node is None:
             node = await find_service(con, clock=clock, node=sync_node)
             if node is None:
-                raise status.ACNET_NO_NODE
+                raise acsys.status.ACNET_NO_NODE
         else:
             node = sync_node
 
         _log.info('using SYNC service on %s', node)
 
         try:
-            gen = con.request_stream('SYNC@' + node, msg, proto=syncd_protocol)
+            gen = con.request_stream('SYNC@' + node, msg, proto=acsys.sync.syncd_protocol)
             async for _, ii in gen:
-                assert isinstance(ii, syncd_protocol.Report_reply)
+                assert isinstance(ii, Report_reply)
 
                 for jj in ii.events:
                     delta = datetime.timedelta(milliseconds=jj.stamp)
@@ -147,8 +147,8 @@ occur.
                                          jj.state.value)
                     else:
                         yield ClockEvent(stamp, jj.clock.event, jj.clock.number)
-        except status.Status as e:
-            if e == status.ACNET_DISCONNECTED:
+        except acsys.status.Status as e:
+            if e == acsys.status.ACNET_DISCONNECTED:
                 raise
             _log.warning('lost connection with SYNC service')
             await asyncio.sleep(0.5)
