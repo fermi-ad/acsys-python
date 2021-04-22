@@ -1077,10 +1077,12 @@ def unmarshal_int64(ii):
     else:
         raise ProtocolError("value out of range for int64")
 
-def unmarshal_double(ii):
-    if ii.__next__() == 40:
-        raw = bytearray(islice(ii, 8))
-        v, = struct.unpack(">d", raw)
+_unpack_float = struct.Struct('>xd').unpack
+
+def unmarshal_double(it):
+    raw = bytes(islice(it, 9))
+    if raw[0] == 40:
+        v, = _unpack_float(raw)
         return v
     else:
         raise ProtocolError("expected tag for double")
