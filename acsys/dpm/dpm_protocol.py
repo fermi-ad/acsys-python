@@ -111,7 +111,7 @@ def marshal_string(val):
         raise ProtocolError("expected string type")
 
 def marshal_binary(val):
-    if isinstance(val, bytearray) or isinstance(val, bytes):
+    if isinstance(val, (bytearray, bytes)):
         return chain(emitRawInt(0x30, len(val)), val)
     else:
         raise ProtocolError("expected bytearray or bytes type")
