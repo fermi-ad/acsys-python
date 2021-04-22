@@ -1031,15 +1031,18 @@ def marshal_reply(val):
 
 # -- Internal unmarshalling routines --
 
-def consumeRawInt(ii, tag):
-    iiTag = (ii.__next__())
-    iiLen = iiTag & 0xf
-    if (iiTag & 0xf0) == (tag & 0xf0) and iiLen > 0 and iiLen <= 8:
-        firstByte = (ii.__next__())
-        retVal = (0 if (0x80 & firstByte) == 0 else -256) | firstByte
-        while iiLen > 1:
-            retVal = (retVal << 8) | (ii.__next__())
-            iiLen = iiLen - 1
+from itertools import islice
+
+def consumeRawInt(it, tag):
+    itTag = it.__next__()
+    itLen = itTag & 0xf
+    if (itTag & 0xf0) == tag and itLen > 0 and itLen <= 8:
+        it = islice(it, itLen)
+        retVal = it.__next__()
+        if (0x80 & retVal) != 0:
+            retVal |= -256
+        for xx in it:
+            retVal = (retVal << 8) + xx
         return int(retVal)
     else:
         raise ProtocolError("bad tag or length")
