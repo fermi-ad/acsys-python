@@ -61,7 +61,7 @@ The 'stamp' field is the timestamp when the data occurred.
 The 'data' field is the requested data. The data will be of the type
 asked in the corresponding DRF2 (specified in the call to the
 '.add_entry()' method.) For instance, if .RAW was specified, the
-'data' field will contain a bytearray(). Otherwise it will contain a
+'data' field will contain a bytes(). Otherwise it will contain a
 scaled, floating point value (or an array, if it's an array device),
 or a dictionary -- in the case of basic status or alarm blocks.
 
@@ -88,7 +88,7 @@ or a dictionary -- in the case of basic status or alarm blocks.
         """The sampled value of the device. The type of this field depends
 upon the device and what scaling was requested. Most readings will be
 'floats' but if a raw reading was requested, it'll be returned as a
-bytearray.
+bytes.
 
         """
         return self._data
@@ -725,7 +725,7 @@ the role.
 
                     in_tok = None
                     while not ctx.complete:
-                        msg = await self._auth_step(bytearray(ctx.step(in_tok)))
+                        msg = await self._auth_step(bytes(ctx.step(in_tok)))
 
                         if not hasattr(msg, 'token'):
                             break

@@ -1088,10 +1088,10 @@ def unmarshal_double(it):
         raise ProtocolError("expected tag for double")
 
 def unmarshal_string(ii):
-    return bytearray(islice(ii, consumeRawInt(ii, 0x40))).decode('utf-8')
+    return bytes(islice(ii, consumeRawInt(ii, 0x40))).decode('utf-8')
 
 def unmarshal_binary(ii):
-    return bytearray(islice(ii, consumeRawInt(ii, 0x30)))
+    return bytes(islice(ii, consumeRawInt(ii, 0x30)))
 
 def unmarshal_array(ii, fn):
     return [fn(ii) for x in range(consumeRawInt(ii, 0x50))]
