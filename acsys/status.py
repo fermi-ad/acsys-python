@@ -17,24 +17,24 @@ class Status(Exception):
         return self.value & 255
 
     @property
-    def errCode(self):
+    def err_code(self):
         """Returns the 'error' code of a status value."""
         return self.value // 256
 
     @property
-    def isSuccess(self):
+    def is_success(self):
         """Returns True if the status represents a success status."""
-        return self.errCode == 0
+        return self.err_code == 0
 
     @property
-    def isFatal(self):
+    def is_fatal(self):
         """Returns True if the status represents a fatal status."""
-        return self.errCode < 0
+        return self.err_code < 0
 
     @property
-    def isWarning(self):
+    def is_warning(self):
         """Returns True if the status represents a warning status."""
-        return self.errCode > 0
+        return self.err_code > 0
 
     def __eq__(self, other):
         return self.value == other.value \
@@ -45,7 +45,7 @@ class Status(Exception):
             if isinstance(other, Status) else True
 
     def __str__(self):
-        return '[' + str(self.facility) + ' ' + str(self.errCode) + ']'
+        return '[' + str(self.facility) + ' ' + str(self.err_code) + ']'
 
 # This section defines common ACNET status codes.
 

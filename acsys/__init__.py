@@ -414,7 +414,7 @@ one indirectly through `acsys.run_client()`.
 
         # A good reply is a tuple with 4 elements.
 
-        if sts.isSuccess and len(res) == 4:
+        if sts.is_success and len(res) == 4:
             self.protocol = proto
             self._raw_handle = res[3]
             self.handle = Connection.__rtoa(res[3])
@@ -451,7 +451,7 @@ Returns the ACSys node name associated with the ACSys node address,
 
             # A good reply is a tuple with 3 elements.
 
-            if sts.isSuccess and len(res) == 3:
+            if sts.is_success and len(res) == 3:
                 return Connection.__rtoa(res[2])
             else:
                 raise sts
@@ -473,7 +473,7 @@ node name, `name`.
 
             # A good reply is a tuple with 4 elements.
 
-            if sts.isSuccess and len(res) == 4:
+            if sts.is_success and len(res) == 4:
                 return res[2] * 256 + res[3]
             else:
                 raise sts
@@ -494,7 +494,7 @@ pool is being used for the connection.
 
         # A good reply is a tuple with 4 elements.
 
-        if sts.isSuccess and len(res) == 4:
+        if sts.is_success and len(res) == 4:
             addr = res[2] * 256 + res[3]
             return await self.get_name(addr)
         else:
@@ -580,7 +580,7 @@ format.
             # element will be the request ID, which is what we return
             # to the caller.
 
-            if sts.isSuccess and len(res) == 3:
+            if sts.is_success and len(res) == 3:
                 return res[2]
             else:
                 raise sts
@@ -620,7 +620,7 @@ isn't an integer, ValueError is raised.
             assert isinstance(reply, tuple) and len(reply) == 3
 
             replier, sts, data = reply
-            if not sts.isFatal:
+            if not sts.is_fatal:
                 if (proto is not None) and len(data) > 0:
                     data = proto.unmarshal_reply(iter(data))
                 return (replier, data)
@@ -718,7 +718,7 @@ isn't an integer, ValueError is raised.
             done = False
             while not done:
                 snd, sts, msg, done = await rpy_q.get()
-                if not sts.isFatal:
+                if not sts.is_fatal:
                     if (proto is not None) and len(msg) > 0:
                         msg = proto.unmarshal_reply(iter(msg))
                     yield (snd, msg)

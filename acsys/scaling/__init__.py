@@ -81,7 +81,7 @@ in `acsys.status.ACNET_UTIME` being raised.
 
     status = acsys.status.Status(reply.status)
 
-    if status.isSuccess:
+    if status.is_success:
         if hasattr(reply, 'raw'):
             return reply.raw
         else:

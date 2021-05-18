@@ -34,14 +34,14 @@ ItemStatus."""
     def tag(self):
         return self._tag
 
-    def isReadingFor(self, *tags):
+    def is_reading_for(self, *tags):
         """Returns True if this object is an ItemData object and its 'tag'
 field matches the parameter 'tag'.
 
         """
         return False
 
-    def isStatusFor(self, *tags):
+    def is_status_for(self, *tags):
         """Returns True if this object is an ItemStatus object and its 'tag'
 field matches the parameter 'tag'.
 
@@ -120,7 +120,7 @@ The index of each timestamp cooresponds to the same index in 'data'.
             return f'{guaranteed_fields}, micros: {self.micros}}}'
         return f'{guaranteed_fields}}}'
 
-    def isReadingFor(self, *tags):
+    def is_reading_for(self, *tags):
         return self.tag in tags
 
 
@@ -155,7 +155,7 @@ result of a setting.
     def __str__(self):
         return f'{{ tag: {self.tag}, status: {self.status} }}'
 
-    def isStatusFor(self, *tags):
+    def is_status_for(self, *tags):
         return self.tag in tags
 
 
@@ -388,7 +388,7 @@ This method is the preferred way to iterate over DPM replies.
                                                   proto=acsys.dpm.dpm_protocol)
             sts = acsys.status.Status(msg.status)
 
-            if not sts.isFatal:
+            if not sts.is_fatal:
                 return
             if sts != acsys.status.ACNET_REQTMO:
                 raise sts
