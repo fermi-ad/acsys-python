@@ -332,14 +332,11 @@ before an `asyncio.TimeoutError` is raised.
 This method is the preferred way to iterate over DPM replies.
 
         """
-        try:
-            while True:
-                ii = await asyncio.wait_for(self.__anext__(), tmo)
-                if ii is None:
-                    return
-                yield ii
-        except GeneratorExit:
-            pass
+        while True:
+            ii = await asyncio.wait_for(self.__anext__(), tmo)
+            if ii is None:
+                return
+            yield ii
 
     async def _restore_state(self):
         async with self._state_sem as lock:
