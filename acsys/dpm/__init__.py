@@ -34,14 +34,14 @@ ItemStatus."""
     def tag(self):
         return self._tag
 
-    def isReadingFor(self, tag):
+    def isReadingFor(self, *tags):
         """Returns True if this object is an ItemData object and its 'tag'
 field matches the parameter 'tag'.
 
         """
         return False
 
-    def isStatusFor(self, tag):
+    def isStatusFor(self, *tags):
         """Returns True if this object is an ItemStatus object and its 'tag'
 field matches the parameter 'tag'.
 
@@ -120,8 +120,8 @@ The index of each timestamp cooresponds to the same index in 'data'.
             return f'{guaranteed_fields}, micros: {self.micros}}}'
         return f'{guaranteed_fields}}}'
 
-    def isReadingFor(self, tag):
-        return self.tag == tag
+    def isReadingFor(self, *tags):
+        return self.tag in tags
 
 
 class ItemStatus(_ItemCommon):
@@ -155,8 +155,8 @@ result of a setting.
     def __str__(self):
         return f'{{ tag: {self.tag}, status: {self.status} }}'
 
-    def isStatusFor(self, tag):
-        return self.tag == tag
+    def isStatusFor(self, *tags):
+        return self.tag in tags
 
 
 async def find_dpm(con, *, node=None):
