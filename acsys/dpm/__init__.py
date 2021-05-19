@@ -639,17 +639,6 @@ calling this method, a few readings may still get delivered.
             rnode, msg = await self.con.request_reply(self.dpm_task, msg,
                                                       timeout=self.req_tmo,
                                                       proto=acsys.dpm.dpm_protocol)
-            if isinstance(msg, Status_reply):
-                if rnode != 3503:
-                    _log.info(f'{self.dpm_task} uses old KRB; switch to DPM02')
-                    self.desired_node = 'DPM02'
-                    await self._restore_state()
-                    continue
-                else:
-                    msg = Authenticate_reply()
-                    msg.serviceName = 'daeset/bd@dce01.fnal.gov'
-                    msg.token = b''
-                    return msg
 
             if not isinstance(msg, Authenticate_reply):
                 raise TypeError(f'unexpected protocol message: %{msg}')
@@ -673,6 +662,7 @@ the role.
 
         # Lazy load the gssapi library so that this doesn't block users
         # who are only doing readings.
+
         spec = importlib.util.find_spec('gssapi')
         if spec is None:
             _log.error('Cannot find the gssapi module')
@@ -682,6 +672,7 @@ the role.
             sys.exit(1)
 
         # Perform the actual import
+
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         gssapi = importlib.import_module('gssapi')
