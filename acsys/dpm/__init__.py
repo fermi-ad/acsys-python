@@ -69,8 +69,7 @@ or a dictionary -- in the case of basic status or alarm blocks.
 
     def __init__(self, tag, stamp, data, micros=None, meta={}):
         super().__init__(tag)
-        delta = datetime.timedelta(seconds=stamp // 1000,
-                                   microseconds=(stamp % 1000) * 1000)
+        delta = datetime.timedelta(milliseconds=stamp)
         tz = datetime.timezone.utc
 
         self._stamp = datetime.datetime(1970, 1, 1, tzinfo=tz) + delta

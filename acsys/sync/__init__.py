@@ -133,14 +133,14 @@ occur.
         _log.info('using SYNC service on %s', node)
 
         try:
+            tz = datetime.timezone.utc
             gen = con.request_stream('SYNC@' + node, msg, proto=acsys.sync.syncd_protocol)
             async for _, ii in gen:
                 assert isinstance(ii, Report_reply)
 
                 for jj in ii.events:
-                    delta = datetime.timedelta(milliseconds=jj.stamp)
-                    epoch = datetime.datetime.utcfromtimestamp(0)
-                    stamp = epoch + delta
+                    delta = datetime.timedelta(milliseconds=stamp)
+                    stamp = datetime.datetime(1970, 1, 1, tzinfo=tz) + delta
 
                     if hasattr(jj, 'state'):
                         yield StateEvent(stamp, jj.state.device_index,
