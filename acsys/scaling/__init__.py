@@ -72,9 +72,10 @@ in `acsys.status.ACNET_UTIME` being raised.
         _log.debug(f'converting {drf} unscaled data, {data}, to scaled')
         msg.raw = data
 
-    node = await find_service(con, node)
     if node is None:
-        raise acsys.status.ACNET_NO_NODE
+        node = await find_service(con)
+        if node is None:
+            raise acsys.status.ACNET_NO_NODE
 
     _, reply = await con.request_reply('SCALE@' + node, msg, timeout=1000,
                                        proto=acsys.scaling.scaling_protocol)
