@@ -155,7 +155,7 @@ class __AcnetdProtocol(asyncio.Protocol):
     def __init__(self):
         super().__init__()
         self.transport = None
-        self.buffer = b''
+        self.buffer = bytearray()
         self.qCmd = asyncio.Queue(100)
         self._rpy_map = {}
         self._rpy_queue = []
@@ -243,7 +243,7 @@ class __AcnetdProtocol(asyncio.Protocol):
                         self._rpy_queue.append((reqid, replier, sts,
                                                 bytes(pkt[20:]), last))
             pkt, rest = self._get_packet(rest)
-        self.buffer = bytearray(rest[-len(rest):])
+        self.buffer = bytearray(rest)
 
     # Gets called when the transport successfully connects. We send
     # out the RAW header to tell acnetd we're using the TCP socket in
