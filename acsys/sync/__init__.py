@@ -139,7 +139,7 @@ occur.
                 assert isinstance(ii, Report_reply)
 
                 for jj in ii.events:
-                    delta = datetime.timedelta(milliseconds=stamp)
+                    delta = datetime.timedelta(milliseconds=jj.stamp)
                     stamp = datetime.datetime(1970, 1, 1, tzinfo=tz) + delta
 
                     if hasattr(jj, 'state'):
