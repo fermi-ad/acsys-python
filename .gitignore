@@ -140,6 +140,5 @@ cython_debug/
 
 # Application specific
 acsys.tgz
-tests/
 .python-version
 .vscode
