@@ -753,7 +753,7 @@ raise an ACSys Status code.
 
 async def _create_socket():
     try:
-        s = socket.create_connection(('acsys-proxy.fnal.gov', 6802), 0.25)
+        acsys_socket = socket.create_connection(('acsys-proxy.fnal.gov', 6802), 0.25)
     except socket.timeout:
         _log.warning('timeout connecting to ACSys')
         return None
