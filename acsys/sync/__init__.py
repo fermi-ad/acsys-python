@@ -36,9 +36,9 @@ class ClockEvent:
 class StateEvent:
     """Simple class that holds state event information."""
 
-    def __init__(self, stamp, di, value):
+    def __init__(self, stamp, device_index, value):
         self._stamp = stamp
-        self._di = di
+        self._device_index = device_index
         self._value = value
 
     @property
@@ -47,9 +47,9 @@ class StateEvent:
         return self._stamp
 
     @property
-    def di(self):
+    def device_index(self):
         """Returns the device index assicated with the state event."""
-        return self._di
+        return self._device_index
 
     @property
     def value(self):
@@ -57,7 +57,7 @@ class StateEvent:
         return self._value
 
     def __str__(self):
-        return f'<STATE di:{self.di}, value:{self.value}, stamp:{self.stamp}>'
+        return f'<STATE device_index:{self.device_index}, value:{self.value}, stamp:{self.stamp}>'
 
 async def find_service(con, clock=Clock_Tclk, node=None):
     """Use Service Discovery to find an available SYNCD service.
@@ -71,8 +71,8 @@ async def find_service(con, clock=Clock_Tclk, node=None):
         replier, _ = await con.request_reply(task, msg, timeout=150,
                                              proto=acsys.sync.syncd_protocol)
         return (await con.get_name(replier))
-    except acsys.status.Status as e:
-        if e != acsys.status.ACNET_UTIME:
+    except acsys.status.Status as exception:
+        if exception != acsys.status.ACNET_UTIME:
             raise
         else:
             return None
@@ -92,8 +92,8 @@ no nodes are found, an empty list is returned.
     try:
         async for replier, _ in gen:
             result.append(await con.get_name(replier))
-    except acsys.status.Status as e:
-        if e != acsys.status.ACNET_UTIME:
+    except acsys.status.Status as exception:
+        if exception != acsys.status.ACNET_UTIME:
             raise
     return result
 
@@ -133,22 +133,22 @@ occur.
         _log.info('using SYNC service on %s', node)
 
         try:
-            tz = datetime.timezone.utc
+            utc_timezone = datetime.timezone.utc
             gen = con.request_stream('SYNC@' + node, msg, proto=acsys.sync.syncd_protocol)
-            async for _, ii in gen:
-                assert isinstance(ii, Report_reply)
+            async for _, reply in gen:
+                assert isinstance(reply, Report_reply)
 
-                for jj in ii.events:
-                    delta = datetime.timedelta(milliseconds=jj.stamp)
-                    stamp = datetime.datetime(1970, 1, 1, tzinfo=tz) + delta
+                for event in reply.events:
+                    delta = datetime.timedelta(milliseconds=event.stamp)
+                    stamp = datetime.datetime(1970, 1, 1, tzinfo=utc_timezone) + delta
 
-                    if hasattr(jj, 'state'):
-                        yield StateEvent(stamp, jj.state.device_index,
-                                         jj.state.value)
+                    if hasattr(event, 'state'):
+                        yield StateEvent(stamp, event.state.device_index,
+                                         event.state.value)
                     else:
-                        yield ClockEvent(stamp, jj.clock.event, jj.clock.number)
-        except acsys.status.Status as e:
-            if e == acsys.status.ACNET_DISCONNECTED:
+                        yield ClockEvent(stamp, event.clock.event, event.clock.number)
+        except acsys.status.Status as exception:
+            if exception == acsys.status.ACNET_DISCONNECTED:
                 raise
             _log.warning('lost connection with SYNC service')
             await asyncio.sleep(0.5)

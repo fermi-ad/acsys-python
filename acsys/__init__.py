@@ -156,7 +156,7 @@ class __AcnetdProtocol(asyncio.Protocol):
         super().__init__()
         self.transport = None
         self.buffer = bytearray()
-        self.qCmd = asyncio.Queue(100)
+        self.q_cmd = asyncio.Queue(100)
         self._rpy_map = {}
         self._rpy_queue = []
 
@@ -181,12 +181,12 @@ class __AcnetdProtocol(asyncio.Protocol):
     def pop_reqid(self, reqid):
         items = []
         rest = []
-        for ii in self._rpy_queue:
-            a, _, _, _, _ = ii
-            if a == reqid:
-                items.append(ii)
+        for rpy in self._rpy_queue:
+            rpy_id, _, _, _, _ = rpy
+            if rpy_id == reqid:
+                items.append(rpy)
             else:
-                rest.append(ii)
+                rest.append(rpy)
         self._rpy_queue = rest
         return items
 
@@ -206,7 +206,7 @@ class __AcnetdProtocol(asyncio.Protocol):
             # ACK.
 
             if pkt_type == 2:
-                self.qCmd.get_nowait().set_result(bytes(pkt))
+                self.q_cmd.get_nowait().set_result(bytes(pkt))
 
             # Type 3 packets are ACSys reply traffic.
 
@@ -227,8 +227,8 @@ class __AcnetdProtocol(asyncio.Protocol):
                     # Check to see if there's a function associated
                     # with the request ID
 
-                    f = self._rpy_map.get(reqid)
-                    if f is not None:
+                    reply = self._rpy_map.get(reqid)
+                    if reply is not None:
                         # If bit 0 is clear, this is the last reply so
                         # we remove the entry from the map.
 
@@ -238,7 +238,7 @@ class __AcnetdProtocol(asyncio.Protocol):
                         # Send the 3-tuple, (sender, status, message)
                         # to the recipient.
 
-                        f((replier, sts, bytes(pkt[20:])), last)
+                        reply((replier, sts, bytes(pkt[20:])), last)
                     else:
                         self._rpy_queue.append((reqid, replier, sts,
                                                 bytes(pkt[20:]), last))
@@ -263,23 +263,23 @@ class __AcnetdProtocol(asyncio.Protocol):
         # indicating the request is done.
 
         msg = (0, ACNET_DISCONNECTED, b'')
-        for _, f in self._rpy_map.items():
-            f(msg, True)
+        for _, func in self._rpy_map.items():
+            func(msg, True)
         self._rpy_map = {}
 
 	# Send an error to all pending ACKs. The '\xde\x01' value is
 	# ACNET_DISCONNECTED.
 
         msg = b'\x00\x00\xde\x01'
-        while not self.qCmd.empty():
-            self.qCmd.get_nowait().set_result(msg)
+        while not self.q_cmd.empty():
+            self.q_cmd.get_nowait().set_result(msg)
 
     def error_received(self, exc):
         _log.error('ACSys socket error', exc_info=True)
 
     async def xact(self, buf):
         ack_fut = asyncio.get_event_loop().create_future()
-        await self.qCmd.put(ack_fut)
+        await self.q_cmd.put(ack_fut)
         if self.transport is not None:
             self.transport.write(buf)
             return _decode_ack(await ack_fut)
@@ -652,8 +652,8 @@ isn't an integer, ValueError is raised.
             def reply_handler(reply, _):
                 try:
                     rpy_fut.set_result(process_reply(reply))
-                except Exception as e:
-                    rpy_fut.set_exception(e)
+                except Exception as exception:
+                    rpy_fut.set_exception(exception)
 
             self.protocol.add_handler(reqid, reply_handler)
             return (await rpy_fut)
@@ -745,11 +745,11 @@ raise an ACSys Status code.
         try:
             await self.request_reply('ACNET@' + node, b'\x00\x00', timeout=250)
             return True
-        except status.Status as e:
-            if e == status.ACNET_REQTMO:
+        except status.Status as exception:
+            if exception == status.ACNET_REQTMO:
                 return False
             else:
-                raise e
+                raise exception
 
 async def _create_socket():
     try:
@@ -760,7 +760,7 @@ async def _create_socket():
     else:
         loop = asyncio.get_event_loop()
         _log.debug('creating ACSys transport')
-        _, proto = await loop.create_connection(__AcnetdProtocol, sock=s)
+        _, proto = await loop.create_connection(__AcnetdProtocol, sock=acsys_socket)
         return proto
 
 async def __client_main(main, **kwargs):

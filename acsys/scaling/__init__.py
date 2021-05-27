@@ -21,10 +21,10 @@ async def find_service(con, node=None):
         node = await con.get_name(replier)
         _log.debug(f'found SCALE service at node {node}')
         return node
-    except acsys.status.Status as e:
-        if e == acsys.status.ACNET_REQTMO:
+    except acsys.status.Status as exception:
+        if exception == acsys.status.ACNET_REQTMO:
             raise acsys.status.ACNET_NO_SUCH
-        elif e != acsys.status.ACNET_UTIME:
+        elif exception != acsys.status.ACNET_UTIME:
             raise
         else:
             return None

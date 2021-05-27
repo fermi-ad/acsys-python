@@ -70,9 +70,9 @@ or a dictionary -- in the case of basic status or alarm blocks.
     def __init__(self, tag, stamp, data, micros=None, meta={}):
         super().__init__(tag)
         delta = datetime.timedelta(milliseconds=stamp)
-        tz = datetime.timezone.utc
+        utc_timezone = datetime.timezone.utc
 
-        self._stamp = datetime.datetime(1970, 1, 1, tzinfo=tz) + delta
+        self._stamp = datetime.datetime(1970, 1, 1, tzinfo=utc_timezone) + delta
         self._data = data
         self._meta = meta
         self._micros = micros
@@ -183,13 +183,13 @@ error occurred while querying, None is returned.
         replier, _ = await con.request_reply(task, msg, timeout=150,
                                              proto=acsys.dpm.dpm_protocol)
         return (await con.get_name(replier))
-    except acsys.status.Status as e:
+    except acsys.status.Status as exception:
         # An ACNET UTIME status is what we receive when no replies
         # have been received in 150ms. This is a valid status (i.e. no
         # DPMs are running), so we consume it and return 'None'.
         # Other fatal errors percolate up.
 
-        if e != acsys.status.ACNET_UTIME:
+        if exception != acsys.status.ACNET_UTIME:
             raise
         return None
 
@@ -208,13 +208,13 @@ running, the list will be empty.
     try:
         async for replier, _ in gen:
             result.append(await con.get_name(replier))
-    except acsys.status.Status as e:
+    except acsys.status.Status as exception:
         # An ACNET UTIME status is what we receive when no replies
         # have been received in 150ms. This is a valid status (i.e.
         # all DPMs have already responded), so we consume it. Other
         # fatal errors percolate up.
 
-        if e != acsys.status.ACNET_UTIME:
+        if exception != acsys.status.ACNET_UTIME:
             raise
     return result
 
@@ -303,13 +303,13 @@ class DPM:
                     return msg
                 continue
 
-            except acsys.status.Status as e:
+            except acsys.status.Status as exception:
 
                 # If we're disconnected from ACNET, re-throw the
                 # exception because there's more work to be done to
                 # restore the state of the program.
 
-                if e == acsys.status.ACNET_DISCONNECTED:
+                if exception == acsys.status.ACNET_DISCONNECTED:
                     raise
 
             except GeneratorExit:
@@ -332,10 +332,10 @@ This method is the preferred way to iterate over DPM replies.
 
         """
         while True:
-            ii = await asyncio.wait_for(self.__anext__(), tmo)
-            if ii is None:
+            reply = await asyncio.wait_for(self.__anext__(), tmo)
+            if reply is None:
                 return
-            yield ii
+            yield reply
 
     async def _restore_state(self):
         async with self._state_sem as lock:
@@ -482,10 +482,10 @@ is non-deterministic.
             try:
                 await self._add_to_list(lock, tag, drf)
                 return []
-            except acsys.status.Status as e:
-                return [(tag, e)]
+            except acsys.status.Status as exception:
+                return [(tag, exception)]
 
-        result = []
+        results = []
 
         # Break the list of entries into groups of, at most, 100
         # entries.
@@ -502,9 +502,9 @@ is non-deterministic.
             # Run all the coroutines at the same time and append the
             # results to the total result.
 
-            for ii in asyncio.as_completed(batch):
-                result += await ii
-        return result
+            for result in asyncio.as_completed(batch):
+                results += await result
+        return results
 
     async def add_entries(self, entries):
         """Adds multiple entries.
@@ -676,7 +676,7 @@ the role.
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         gssapi = importlib.import_module('gssapi')
-        RequirementFlag = gssapi.raw.types.RequirementFlag
+        requirement_flag = gssapi.raw.types.RequirementFlag
 
         # Get the user's Kerberos credentials. Make sure they are from,
         # the FNAL.GOV realm and they haven't expired.
@@ -698,9 +698,9 @@ the role.
             _log.info(f'service name: {service_name}')
             ctx = gssapi.SecurityContext(name=service_name, usage='initiate',
                                          creds=creds,
-                                         flags=[RequirementFlag.replay_detection,
-                                                RequirementFlag.integrity,
-                                                RequirementFlag.out_of_sequence_detection],
+                                         flags=[requirement_flag.replay_detection,
+                                                requirement_flag.integrity,
+                                                requirement_flag.out_of_sequence_detection],
                                          mech=gssapi.MechType.kerberos)
             try:
                 async with self._state_sem as lock:
@@ -753,19 +753,19 @@ the role.
                 if self._dev_list.get(ref_id) is None:
                     raise ValueError(f'setting for undefined ref_id, {ref_id}')
 
-                s = DPM._build_struct(ref_id, input_val)
-                if isinstance(s, RawSetting_struct):
+                dpm_struct = DPM._build_struct(ref_id, input_val)
+                if isinstance(dpm_struct, RawSetting_struct):
                     if not hasattr(msg, 'raw_array'):
                         msg.raw_array = []
-                    msg.raw_array.append(s)
-                elif isinstance(s, TextSetting_struct):
+                    msg.raw_array.append(dpm_struct)
+                elif isinstance(dpm_struct, TextSetting_struct):
                     if not hasattr(msg, 'text_array'):
                         msg.text_array = []
-                    msg.text_array.append(s)
+                    msg.text_array.append(dpm_struct)
                 else:
                     if not hasattr(msg, 'scaled_array'):
                         msg.scaled_array = []
-                    msg.scaled_array.append(s)
+                    msg.scaled_array.append(dpm_struct)
 
             msg.list_id = self.list_id
             await self._retryable_request(msg)
