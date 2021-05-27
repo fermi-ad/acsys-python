@@ -227,8 +227,8 @@ class __AcnetdProtocol(asyncio.Protocol):
                     # Check to see if there's a function associated
                     # with the request ID
 
-                    reply = self._rpy_map.get(reqid)
-                    if reply is not None:
+                    func = self._rpy_map.get(reqid)
+                    if func is not None:
                         # If bit 0 is clear, this is the last reply so
                         # we remove the entry from the map.
 
@@ -238,7 +238,7 @@ class __AcnetdProtocol(asyncio.Protocol):
                         # Send the 3-tuple, (sender, status, message)
                         # to the recipient.
 
-                        reply((replier, sts, bytes(pkt[20:])), last)
+                        func((replier, sts, bytes(pkt[20:])), last)
                     else:
                         self._rpy_queue.append((reqid, replier, sts,
                                                 bytes(pkt[20:]), last))
