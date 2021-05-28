@@ -6,7 +6,8 @@ class Status(Exception):
         value. The value must be in the range of signed, 16-bit
         integers.
         """
-        if val > -0x8000 and val <= 0x7fff:
+        super().__init__()
+        if -0x8000 < val <= 0x7fff:
             self.value = val
         else:
             raise ValueError('raw status values are 16-bit, signed integers')
@@ -48,6 +49,7 @@ class Status(Exception):
         return f'[{self.facility} {self.err_code}]'
 
 # This section defines common ACNET status codes.
+
 
 ACNET_SUCCESS = Status(1 + 256 * 0)
 ACNET_PEND = Status(1 + 256 * 1)

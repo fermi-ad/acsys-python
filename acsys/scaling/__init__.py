@@ -1,13 +1,10 @@
-import datetime
-import asyncio
 import logging
 import acsys.status
 from acsys.scaling.scaling_protocol import (ServiceDiscovery_request,
-                                            Scale_request,
-                                            ServiceDiscovery_reply,
-                                            Scale_reply)
+                                            Scale_request)
 
 _log = logging.getLogger(__name__)
+
 
 async def find_service(con, node=None):
     """Use Service Discovery to find an available SCALE service.
@@ -16,18 +13,19 @@ async def find_service(con, node=None):
     task = f'SCALE@{node or "MCAST"}'
     msg = ServiceDiscovery_request()
     try:
-        replier, _ = await con.request_reply(task, msg, timeout=150,
-                                             proto=acsys.scaling.scaling_protocol)
+        replier, _ = await con.request_reply(
+            task, msg, timeout=150, proto=acsys.scaling.scaling_protocol)
         node = await con.get_name(replier)
-        _log.debug(f'found SCALE service at node {node}')
+        _log.debug('found SCALE service at node %s', node)
         return node
     except acsys.status.Status as exception:
         if exception == acsys.status.ACNET_REQTMO:
             raise acsys.status.ACNET_NO_SUCH
-        elif exception != acsys.status.ACNET_UTIME:
+        if exception != acsys.status.ACNET_UTIME:
             raise
-        else:
-            return None
+
+        return None
+
 
 async def convert_data(con, drf, data, node=None):
     """Returns converted data.
@@ -66,10 +64,10 @@ in `acsys.status.ACNET_UTIME` being raised.
         data = [float(data)]
 
     if isinstance(data, list):
-        _log.debug(f'converting {drf} scaled data, {data}, to unscaled')
+        _log.debug('converting %s scaled data, %s, to unscaled', drf, data)
         msg.scaled = data
     else:
-        _log.debug(f'converting {drf} unscaled data, {data}, to scaled')
+        _log.debug('converting %s unscaled data, %s, to scaled', drf, data)
         msg.raw = data
 
     if node is None:
@@ -85,7 +83,7 @@ in `acsys.status.ACNET_UTIME` being raised.
     if status.is_success:
         if hasattr(reply, 'raw'):
             return reply.raw
-        else:
-            return reply.scaled
-    else:
-        raise status
+
+        return reply.scaled
+
+    raise status

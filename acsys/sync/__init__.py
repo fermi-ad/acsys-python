@@ -7,6 +7,7 @@ from acsys.sync.syncd_protocol import (Clock_Tclk, Discover_request,
 
 _log = logging.getLogger(__name__)
 
+
 class ClockEvent:
     """Simple class that holds clock event information."""
 
@@ -32,6 +33,7 @@ class ClockEvent:
 
     def __str__(self):
         return f'<TCLK event:{hex(self.event)}, stamp:{self.stamp}>'
+
 
 class StateEvent:
     """Simple class that holds state event information."""
@@ -59,6 +61,7 @@ class StateEvent:
     def __str__(self):
         return f'<STATE device_index:{self.device_index}, value:{self.value}, stamp:{self.stamp}>'
 
+
 async def find_service(con, clock=Clock_Tclk, node=None):
     """Use Service Discovery to find an available SYNCD service.
 
@@ -70,12 +73,13 @@ async def find_service(con, clock=Clock_Tclk, node=None):
     try:
         replier, _ = await con.request_reply(task, msg, timeout=150,
                                              proto=acsys.sync.syncd_protocol)
-        return (await con.get_name(replier))
+        return await con.get_name(replier)
     except acsys.status.Status as exception:
         if exception != acsys.status.ACNET_UTIME:
             raise
-        else:
-            return None
+
+        return None
+
 
 async def get_available(con, clock=Clock_Tclk):
     """Find active SYNCD services.
@@ -87,8 +91,8 @@ no nodes are found, an empty list is returned.
     result = []
     msg = Discover_request()
     msg.clock = clock
-    gen = con.request_stream('SYNC@MCAST', msg, proto=acsys.sync.syncd_protocol,
-                             timeout=150)
+    gen = con.request_stream(
+        'SYNC@MCAST', msg, proto=acsys.sync.syncd_protocol, timeout=150)
     try:
         async for replier, _ in gen:
             result.append(await con.get_name(replier))
@@ -96,6 +100,7 @@ no nodes are found, an empty list is returned.
         if exception != acsys.status.ACNET_UTIME:
             raise
     return result
+
 
 async def get_events(con, ev_str, sync_node=None, clock=Clock_Tclk):
     """Returns an async generator that yields event information.

@@ -109,7 +109,9 @@ import logging
 import array
 import socket
 import struct
+import nest_asyncio
 import acsys.status as status
+from acsys.status import ACNET_DISCONNECTED
 
 # https://packaging.python.org/guides/single-sourcing-package-version/#single-sourcing-the-version
 try:
@@ -124,9 +126,6 @@ __all__ = [
     'Connection',
 ]
 
-from acsys.status import ACNET_DISCONNECTED
-
-import nest_asyncio
 nest_asyncio.apply()
 
 _log = logging.getLogger(__name__)
@@ -143,7 +142,10 @@ _ackMap = {
     16: lambda buf: struct.unpack('>2xHhHI', buf)
 }
 
-def _throw_bug(_): raise status.ACNET_REQTMO
+
+def _throw_bug(_):
+    raise status.ACNET_REQTMO
+
 
 def _decode_ack(buf):
     return (_ackMap.get(buf[2] * 256 + buf[3], _throw_bug))(buf)
@@ -151,7 +153,8 @@ def _decode_ack(buf):
 # This class defines the communication protocol between the client and
 # acnetd.
 
-class __AcnetdProtocol(asyncio.Protocol):
+
+class _AcnetdProtocol(asyncio.Protocol):
     def __init__(self):
         super().__init__()
         self.transport = None
@@ -173,7 +176,8 @@ class __AcnetdProtocol(asyncio.Protocol):
 
     def _get_packet(self, view):
         if len(view) >= 4:
-            total = (view[0] << 24) + (view[1] << 16) + (view[2] << 8) + view[3]
+            total = (view[0] << 24) + (view[1] << 16) + \
+                (view[2] << 8) + view[3]
             if len(view) >= total + 4:
                 return (view[4:(total + 4)], view[(total + 4):])
         return (None, view)
@@ -267,14 +271,14 @@ class __AcnetdProtocol(asyncio.Protocol):
             func(msg, True)
         self._rpy_map = {}
 
-	# Send an error to all pending ACKs. The '\xde\x01' value is
-	# ACNET_DISCONNECTED.
+        # Send an error to all pending ACKs. The '\xde\x01' value is
+        # ACNET_DISCONNECTED.
 
         msg = b'\x00\x00\xde\x01'
         while not self.q_cmd.empty():
             self.q_cmd.get_nowait().set_result(msg)
 
-    def error_received(self, exc):
+    def error_received(self):
         _log.error('ACSys socket error', exc_info=True)
 
     async def xact(self, buf):
@@ -283,11 +287,12 @@ class __AcnetdProtocol(asyncio.Protocol):
         if self.transport is not None:
             self.transport.write(buf)
             return _decode_ack(await ack_fut)
-        else:
-            raise ACNET_DISCONNECTED
+
+        raise ACNET_DISCONNECTED
 
 # This class manages the connection between the client and acnetd. It
 # defines the public API.
+
 
 class Connection:
     """Manages and maintains a connection to the ACSys control system. In
@@ -373,7 +378,8 @@ one indirectly through `acsys.run_client()`.
                 try:
                     return await self.protocol.xact(buf)
                 except status.Status as sts:
-                    if sts == ACNET_DISCONNECTED and (self.protocol is not None):
+                    if sts == ACNET_DISCONNECTED \
+                            and (self.protocol is not None):
                         self.protocol = None
                     raise
         else:
@@ -430,7 +436,7 @@ one indirectly through `acsys.run_client()`.
             try:
                 await con._connect(proto)
                 return con
-            except:
+            except Exception:
                 del con
                 raise
         else:
@@ -444,7 +450,7 @@ Returns the ACSys node name associated with the ACSys node address,
 `addr`.
 
         """
-        if isinstance(addr, int) and addr >= 0 and addr <= 0x10000:
+        if isinstance(addr, int) and 0 <= addr <= 0x10000:
             buf = struct.pack('>I2H2IH', 14, 1, 12, self._raw_handle, 0, addr)
             res = await self._xact(buf)
             sts = status.Status(res[1])
@@ -453,10 +459,11 @@ Returns the ACSys node name associated with the ACSys node address,
 
             if sts.is_success and len(res) == 3:
                 return Connection.__rtoa(res[2])
-            else:
-                raise sts
-        else:
-            raise ValueError('addr must be in the range of a 16-bit, signed integer')
+
+            raise sts
+
+        raise ValueError(
+            'addr must be in the range of a 16-bit, signed integer')
 
     async def get_addr(self, name):
         """Look-up node address.
@@ -475,10 +482,11 @@ node name, `name`.
 
             if sts.is_success and len(res) == 4:
                 return res[2] * 256 + res[3]
-            else:
-                raise sts
-        else:
-            raise ValueError('name must be a string of no more than 6 characters')
+
+            raise sts
+
+        raise ValueError(
+            'name must be a string of no more than 6 characters')
 
     async def get_local_node(self):
         """Return the node name associated with this connection.
@@ -497,24 +505,24 @@ pool is being used for the connection.
         if sts.is_success and len(res) == 4:
             addr = res[2] * 256 + res[3]
             return await self.get_name(addr)
-        else:
-            raise sts
+
+        raise sts
 
     async def _to_trunknode(self, node):
         if isinstance(node, str):
             return await self.get_addr(node)
-        elif not isinstance(node, int):
+        if not isinstance(node, int):
             raise ValueError('node should be an integer or string')
-        else:
-            return node
+
+        return node
 
     async def _to_nodename(self, node):
         if isinstance(node, int):
             return await self.get_name(node)
-        elif not isinstance(node, str):
+        if not isinstance(node, str):
             raise ValueError('node should be an integer or string')
-        else:
-            return node
+
+        return node
 
     async def make_canonical_taskname(self, taskname):
         """Return an efficient form of taskname.
@@ -537,22 +545,23 @@ format.
             if len(part) == 2:
                 addr = await self.get_addr(part[1])
                 return (Connection.__ator(part[0]), addr)
-            else:
-                raise ValueError('taskname has bad format')
-        elif isinstance(taskname, tuple) and len(taskname) == 2:
+
+            raise ValueError('taskname has bad format')
+
+        if isinstance(taskname, tuple) and len(taskname) == 2:
             if isinstance(taskname[0], int):
                 if isinstance(taskname[1], int):
                     return taskname
-                else:
-                    return (taskname[0], await self.get_addr(taskname[1]))
-            else:
-                handle = Connection.__ator(taskname[0])
-                if isinstance(taskname[1], int):
-                    return (handle, taskname[1])
-                else:
-                    return (handle, await self.get_addr(taskname[1]))
-        else:
-            raise ValueError('invalid taskname')
+
+                return (taskname[0], await self.get_addr(taskname[1]))
+
+            handle = Connection.__ator(taskname[0])
+            if isinstance(taskname[1], int):
+                return (handle, taskname[1])
+
+            return (handle, await self.get_addr(taskname[1]))
+
+        raise ValueError('invalid taskname')
 
     async def _mk_req(self, remtsk, message, mult, proto, timeout):
         # If a protocol module name was provided, verify the message
@@ -563,12 +572,14 @@ format.
             if hasattr(message, 'marshal'):
                 message = bytearray(message.marshal())
             else:
-                raise ValueError('message wasn''t created by the protocol compiler')
+                raise ValueError(
+                    'message wasn''t created by the protocol compiler')
 
         # Make sure the message is some sort of binary and the timeout
         # is an integer.
 
-        if isinstance(message, (bytes, bytearray)) and isinstance(timeout, int):
+        if isinstance(message, (bytes, bytearray)) \
+                and isinstance(timeout, int):
             task, node = await self.make_canonical_taskname(remtsk)
             buf = struct.pack('>I2H3I2HI', 24 + len(message), 1, 18,
                               self._raw_handle, 0, task, node, mult,
@@ -582,12 +593,19 @@ format.
 
             if sts.is_success and len(res) == 3:
                 return res[2]
-            else:
-                raise sts
-        else:
-            raise ValueError('message must be a binary')
 
-    async def request_reply(self, remtsk, message, *, proto=None, timeout=1000):
+            raise sts
+
+        raise ValueError('message must be a binary')
+
+    async def request_reply(
+        self,
+        remtsk,
+        message,
+        *,
+        proto=None,
+        timeout=1000
+    ):
         """Request a single reply from an ACSys task.
 
 This function sends a request to an ACSys task and returns a future
@@ -624,8 +642,8 @@ isn't an integer, ValueError is raised.
                 if (proto is not None) and len(data) > 0:
                     data = proto.unmarshal_reply(iter(data))
                 return (replier, data)
-            else:
-                raise sts
+
+            raise sts
 
         reqid = await self._mk_req(remtsk, message, 0, proto, timeout)
 
@@ -656,12 +674,19 @@ isn't an integer, ValueError is raised.
                     rpy_fut.set_exception(exception)
 
             self.protocol.add_handler(reqid, reply_handler)
-            return (await rpy_fut)
-        else:
-            _, replier, sts, msg, _ = replies[0]
-            return process_reply((replier, sts, msg))
+            return await rpy_fut
 
-    async def request_stream(self, remtsk, message, *, proto=None, timeout=1000):
+        _, replier, sts, msg, _ = replies[0]
+        return process_reply((replier, sts, msg))
+
+    async def request_stream(
+        self,
+        remtsk,
+        message,
+        *,
+        proto=None,
+        timeout=1000
+    ):
         """Request a stream of replies from an ACSys task.
 
 This function sends a request to an ACSys task and returns an async
@@ -748,8 +773,9 @@ raise an ACSys Status code.
         except status.Status as exception:
             if exception == status.ACNET_REQTMO:
                 return False
-            else:
-                raise exception
+
+            raise exception
+
 
 async def _create_socket():
     try:
@@ -760,8 +786,9 @@ async def _create_socket():
     else:
         loop = asyncio.get_event_loop()
         _log.debug('creating ACSys transport')
-        _, proto = await loop.create_connection(__AcnetdProtocol, sock=acsys_socket)
+        _, proto = await loop.create_connection(_AcnetdProtocol, sock=acsys_socket)
         return proto
+
 
 async def __client_main(main, **kwargs):
     con = await Connection.create()
@@ -769,6 +796,7 @@ async def __client_main(main, **kwargs):
         await main(con, **kwargs)
     finally:
         del con
+
 
 def run_client(main, **kwargs):
     """Starts an asynchronous session for ACSys clients.
@@ -789,10 +817,10 @@ by `main()`.
     client_fut = asyncio.Task(__client_main(main, **kwargs))
     try:
         loop.run_until_complete(client_fut)
-    except:
+    except Exception:
         client_fut.cancel()
         try:
             loop.run_until_complete(client_fut)
-        except:
+        except Exception:
             pass
         raise

@@ -25,7 +25,7 @@ async def update_ramp_slot(con, device, index, value):
         async for reply in dpm.replies():
             if reply.isReadingFor(0):
                 return raw + reply.data[-2:]
-            elif reply.isStatusFor(0):
+            if reply.isStatusFor(0):
                 raise reply.status
     return None
 

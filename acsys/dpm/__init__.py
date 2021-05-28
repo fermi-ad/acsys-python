@@ -17,7 +17,8 @@ from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     Raw_reply, ScalarArray_reply, Scalar_reply,
                                     TextArray_reply, Text_reply,
                                     ListStatus_reply, ApplySettings_reply,
-                                    Authenticate_request, EnableSettings_request,
+                                    Authenticate_request,
+                                    EnableSettings_request,
                                     TimedScalarArray_reply, Authenticate_reply)
 
 _log = logging.getLogger(__name__)
@@ -113,7 +114,8 @@ The index of each timestamp cooresponds to the same index in 'data'.
         return self._micros
 
     def __str__(self):
-        guaranteed_fields = f'{{ tag: {self.tag}, stamp: {self.stamp}, data: {self.data}, meta: {self.meta}'
+        guaranteed_fields = (f'{{ tag: {self.tag}, stamp: {self.stamp}, '
+                             f'data: {self.data}, meta: {self.meta}')
 
         if self.micros:
             return f'{guaranteed_fields}, micros: {self.micros}}}'
@@ -182,7 +184,7 @@ error occurred while querying, None is returned.
     try:
         replier, _ = await con.request_reply(task, msg, timeout=150,
                                              proto=acsys.dpm.dpm_protocol)
-        return (await con.get_name(replier))
+        return await con.get_name(replier)
     except acsys.status.Status as exception:
         # An ACNET UTIME status is what we receive when no replies
         # have been received in 150ms. This is a valid status (i.e. no
@@ -276,7 +278,8 @@ class DPM:
                 {'di': msg.di, 'name': msg.name,
                  'desc': msg.description,
                  'units': msg.units if hasattr(msg, 'units') else None,
-                 'format_hint': msg.format_hint if hasattr(msg, 'format_hint') else None}
+                 'format_hint': msg.format_hint if hasattr(msg, 'format_hint')
+                 else None}
             return None
         if isinstance(msg, TimedScalarArray_reply):
             return ItemData(msg.ref_id, msg.timestamp, msg.data,
@@ -362,8 +365,9 @@ This method is the preferred way to iterate over DPM replies.
 
         # Send an OPEN LIST request to the DPM.
 
-        gen = self.con.request_stream(self.dpm_task, OpenList_request(),
-                                      timeout=self.req_tmo, proto=acsys.dpm.dpm_protocol)
+        gen = self.con.request_stream(
+            self.dpm_task, OpenList_request(),
+            timeout=self.req_tmo, proto=acsys.dpm.dpm_protocol)
         _, msg = await gen.asend(None)
         _log.info('DPM returned list id %d', msg.list_id)
 
@@ -395,7 +399,7 @@ This method is the preferred way to iterate over DPM replies.
             # Received a request timeout. Log it and retry the
             # operation.
 
-            _log.info(f'DPM({self.list_id}) retrying request: {msg}')
+            _log.info('DPM(%i) retrying request: %s', self.list_id, msg)
 
         raise acsys.status.ACNET_REQTMO
 
@@ -524,7 +528,7 @@ adding them one by one.
                 raise ValueError('drf must be a string -- found {drf}')
 
         async with self._state_sem as lock:
-            return (await self._add_entries(lock, entries))
+            return await self._add_entries(lock, entries)
 
     async def remove_entry(self, tag):
         """Removes an entry from the list of devices to be acquired.
@@ -636,9 +640,9 @@ calling this method, a few readings may still get delivered.
             if tok is not None:
                 msg.token = tok
 
-            rnode, msg = await self.con.request_reply(self.dpm_task, msg,
-                                                      timeout=self.req_tmo,
-                                                      proto=acsys.dpm.dpm_protocol)
+            _, msg = await self.con.request_reply(
+                self.dpm_task, msg, timeout=self.req_tmo,
+                proto=acsys.dpm.dpm_protocol)
 
             if not isinstance(msg, Authenticate_reply):
                 raise TypeError(f'unexpected protocol message: %{msg}')
@@ -695,7 +699,7 @@ the role.
             msg = await self._auth_step(None)
             service_name = gssapi.Name(msg.serviceName.translate(
                 {ord('@'): '/', ord('\\'): None}))
-            _log.info(f'service name: {service_name}')
+            _log.info('service name: %s', service_name)
             ctx = gssapi.SecurityContext(name=service_name, usage='initiate',
                                          creds=creds,
                                          flags=[requirement_flag.replay_detection,
@@ -797,7 +801,7 @@ in `.settings_enable()`, so it will be even more expensive.
         await self.dpm._restore_state()
         return self.dpm
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type, exc, trace_back):
         _log.debug('exiting DPM context')
         await self.dpm._shutdown()
         return False
