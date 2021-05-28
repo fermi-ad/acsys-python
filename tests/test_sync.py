@@ -28,3 +28,5 @@ async def my_client(con):
 
 def test_sync():
     acsys.run_client(my_client)
+
+test_sync()
