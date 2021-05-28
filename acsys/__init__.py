@@ -301,7 +301,9 @@ directly interact with the local ACSys service.
 
     """
 
-    _rad50_chars = array.array('B', b' ABCDEFGHIJKLMNOPQRSTUVWXYZ$.%0123456789')
+    _char_index = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ$.%0123456789'
+    _rad50_chars = array.array(
+        'B', bytes(_char_index, 'utf8'))
 
     def __init__(self):
         """Constructor.
@@ -343,19 +345,10 @@ one indirectly through `acsys.run_client()`.
     @staticmethod
     def __ator(input_string):
         def char_to_index(char):
-            if 'A' <= char <= 'Z':
-                return ord(char) - ord('A') + 1
-            if 'a' <= char <= 'z':
-                return ord(char) - ord('a') + 1
-            if '0' <= char <= '9':
-                return ord(char) - ord('0') + 30
-            if char == '$':
-                return 27
-            if char == '.':
-                return 28
-            if char == '%':
-                return 29
-            return 0
+            try:
+                return Connection._char_index.index(char.upper())
+            except ValueError:
+                return 0
 
         first_bit = 0
         second_bit = 0
