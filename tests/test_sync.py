@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 
 import acsys.sync
+import logging
+
+FORMAT = '%(asctime)-15s [%(levelname)s] %(message)s'
+logging.basicConfig(format=FORMAT)
+
+log = logging.getLogger('acsys')
+log.setLevel(logging.DEBUG)
 
 # This function calls 'acsys.sync.get_events' to register for
 # the two clock events. The return value is a generator which
