@@ -13,7 +13,7 @@ async def find_service(con, node=None):
     """Use Service Discovery to find an available SCALE service.
     """
 
-    task = 'SCALE@' + (node or 'MCAST')
+    task = f'SCALE@{node or "MCAST"}'
     msg = ServiceDiscovery_request()
     try:
         replier, _ = await con.request_reply(task, msg, timeout=150,
@@ -77,7 +77,7 @@ in `acsys.status.ACNET_UTIME` being raised.
         if node is None:
             raise acsys.status.ACNET_NO_NODE
 
-    _, reply = await con.request_reply('SCALE@' + node, msg, timeout=1000,
+    _, reply = await con.request_reply(f'SCALE@{node}', msg, timeout=1000,
                                        proto=acsys.scaling.scaling_protocol)
 
     status = acsys.status.Status(reply.status)

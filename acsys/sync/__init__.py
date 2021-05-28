@@ -64,7 +64,7 @@ async def find_service(con, clock=Clock_Tclk, node=None):
 
     """
 
-    task = 'SYNC@' + (node or 'MCAST')
+    task = f'SYNC@{node or "MCAST"}'
     msg = Discover_request()
     msg.clock = clock
     try:
@@ -134,7 +134,7 @@ occur.
 
         try:
             utc_timezone = datetime.timezone.utc
-            gen = con.request_stream('SYNC@' + node, msg, proto=acsys.sync.syncd_protocol)
+            gen = con.request_stream(f'SYNC@{node}', msg, proto=acsys.sync.syncd_protocol)
             async for _, reply in gen:
                 assert isinstance(reply, Report_reply)
 

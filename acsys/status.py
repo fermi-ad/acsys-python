@@ -45,7 +45,7 @@ class Status(Exception):
             if isinstance(other, Status) else True
 
     def __str__(self):
-        return '[' + str(self.facility) + ' ' + str(self.err_code) + ']'
+        return f'[{self.facility} {self.err_code}]'
 
 # This section defines common ACNET status codes.
 

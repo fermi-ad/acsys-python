@@ -177,7 +177,7 @@ error occurred while querying, None is returned.
     # specified, the task is 'DPMD@MCAST'. If it is specified, the
     # task is ('DPMD@' + node).
 
-    task = 'DPMD@' + (node or 'MCAST')
+    task = f'DPMD@{node or "MCAST"}'
     msg = ServiceDiscovery_request()
     try:
         replier, _ = await con.request_reply(task, msg, timeout=150,
@@ -351,7 +351,7 @@ This method is the preferred way to iterate over DPM replies.
         dpm = await find_dpm(self.con, node=self.desired_node)
 
         if dpm is not None:
-            task = 'DPMD@' + dpm
+            task = f'DPMD@{dpm}'
             self.dpm_task = await self.con.make_canonical_taskname(task)
             _log.info('using DPM task: %s', task)
         else:

@@ -743,7 +743,7 @@ raise an ACSys Status code.
         """
         node = await self._to_nodename(node)
         try:
-            await self.request_reply('ACNET@' + node, b'\x00\x00', timeout=250)
+            await self.request_reply(f'ACNET@{node}', b'\x00\x00', timeout=250)
             return True
         except status.Status as exception:
             if exception == status.ACNET_REQTMO:
