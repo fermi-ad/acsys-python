@@ -384,7 +384,10 @@ one indirectly through `acsys.run_client()`.
 
     async def _cancel(self, reqid):
         buf = struct.pack('>I2H2IH', 14, 1, 8, self._raw_handle, 0, reqid)
-        await self._xact(buf)
+        try:
+            await self._xact(buf)
+        except Exception:
+            pass
 
     # acnetd needs to know when a client is ready to receive replies
     # to a request. This method informs acnetd which request has been
@@ -742,14 +745,14 @@ isn't an integer, ValueError is raised.
                     yield (snd, msg)
                 else:
                     raise sts
-        except GeneratorExit:
-            pass
         finally:
             # If this generator exits for any reason, cancel the
             # associated request.
 
-            _log.debug('canceling request %d', reqid)
-            await self._cancel(reqid)
+            if not done:
+                _log.debug('canceling request %d', reqid)
+                loop = asyncio.get_event_loop()
+                loop.run_until_complete(self._cancel(reqid))
 
     async def ping(self, node):
         """Pings an ACSys node.
