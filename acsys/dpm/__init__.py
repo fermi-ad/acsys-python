@@ -57,14 +57,23 @@ DPM delivers device data using a stream of ItemData objects. The 'tag'
 field corresponds to the tag parameter used when the '.add_entry()'
 method was used to add the device to the list.
 
-The 'stamp' field is the timestamp when the data occurred.
+The 'stamp' property is the timestamp when the data occurred.
 
-The 'data' field is the requested data. The data will be of the type
-asked in the corresponding DRF2 (specified in the call to the
+The 'data' property is the requested data. The data will be of the
+type asked in the corresponding DRF2 (specified in the call to the
 '.add_entry()' method.) For instance, if .RAW was specified, the
 'data' field will contain a bytes(). Otherwise it will contain a
 scaled, floating point value (or an array, if it's an array device),
 or a dictionary -- in the case of basic status or alarm blocks.
+
+The 'meta' property contains a dictionary of extra information about
+the device. The 'name' key holds the device name. 'di' contains the
+device index. If the device has scaling, a 'units' key will be present
+and hold the engineering units of the reading.
+
+The 'micros' property contains a list of microsecond timestamps for
+each datum in data. The index of each timestamp cooresponds to the
+same index in 'data'.
 
     """
 
@@ -80,37 +89,18 @@ or a dictionary -- in the case of basic status or alarm blocks.
 
     @property
     def stamp(self):
-        """The timestamp of when the 'data' was sampled."""
         return self._stamp
 
     @property
     def data(self):
-        """The sampled value of the device. The type of this field depends
-upon the device and what scaling was requested. Most readings will be
-'floats' but if a raw reading was requested, it'll be returned as a
-bytes.
-
-        """
         return self._data
 
     @property
     def meta(self):
-        """Contains a dictionary of extra information about the device.
-
-The 'name' key holds the device name. 'di' contains the device
-index. If the device has scaling, a 'units' key will be present and
-hold the engineering units of the reading.
-
-        """
         return self._meta
 
     @property
     def micros(self):
-        """Contains a list of microsecond timestamps for each datum in data.
-
-The index of each timestamp cooresponds to the same index in 'data'.
-
-        """
         return self._micros
 
     def __str__(self):
@@ -149,8 +139,6 @@ result of a setting.
 
     @property
     def status(self):
-        """Indicates the resulting status of the request associated with
-'tag'."""
         return self._status
 
     def __str__(self):
