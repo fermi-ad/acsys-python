@@ -1,6 +1,9 @@
-"""This module provides access to the ACSys Control System via the
-`acnetd` daemon, allowing Python scripts to communicate with ACSys
-services and use ACSys resources.
+"""This module provides access to the ACSys Control System allowing
+Python scripts to communicate with ACSys services and use ACSys
+resources. Historically, all these resources were accessed using the
+ACNET protocol. Many services are being updated to using standard
+transports and protocols. The APIs that pass around an
+`acsys.Connection` object are still using ACNET to transfer data.
 
 To use this library, your main function should be marked `async` and
 take a single parameter which will be the ACSys Connection object.
