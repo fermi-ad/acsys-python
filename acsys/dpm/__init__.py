@@ -148,67 +148,6 @@ result of a setting.
         return self.tag in tags
 
 
-async def find_dpm(con, *, node=None):
-    """Use Service Discovery to find an available DPM.
-
-Multicasts a discovery message to find the next available DPM. The
-first responder's node name is returned. If no DPMs are running or an
-error occurred while querying, None is returned.
-
-    """
-
-    # The "(node or 'MCAST')" expression is very similar to ternary
-    # operators in other languages. If 'node' is None, it is treated
-    # as False in the expression so the result is the second operand
-    # (i.e. 'MCAST'.) If 'node' is not None, then the expression is
-    # equal to it.
-    #
-    # In other words, if the optional 'node' parameter isn't
-    # specified, the task is 'DPMD@MCAST'. If it is specified, the
-    # task is ('DPMD@' + node).
-
-    task = f'DPMD@{node or "MCAST"}'
-    msg = ServiceDiscovery_request()
-    try:
-        replier, _ = await con.request_reply(task, msg, timeout=150,
-                                             proto=acsys.dpm.dpm_protocol)
-        return await con.get_name(replier)
-    except acsys.status.Status as exception:
-        # An ACNET UTIME status is what we receive when no replies
-        # have been received in 150ms. This is a valid status (i.e. no
-        # DPMs are running), so we consume it and return 'None'.
-        # Other fatal errors percolate up.
-
-        if exception != acsys.status.ACNET_UTIME:
-            raise
-        return None
-
-
-async def available_dpms(con):
-    """Find active DPMs.
-
-This function returns a list of available DPM nodes. If no DPMs are
-running, the list will be empty.
-
-    """
-    result = []
-    msg = ServiceDiscovery_request()
-    gen = con.request_stream(
-        'DPMD@MCAST', msg, proto=acsys.dpm.dpm_protocol, timeout=150)
-    try:
-        async for replier, _ in gen:
-            result.append(await con.get_name(replier))
-    except acsys.status.Status as exception:
-        # An ACNET UTIME status is what we receive when no replies
-        # have been received in 150ms. This is a valid status (i.e.
-        # all DPMs have already responded), so we consume it. Other
-        # fatal errors percolate up.
-
-        if exception != acsys.status.ACNET_UTIME:
-            raise
-    return result
-
-
 class DPM:
     def __init__(self, con, node):
         # These properties can be accessed without owning '_state_sem'
