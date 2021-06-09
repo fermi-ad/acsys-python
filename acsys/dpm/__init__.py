@@ -6,101 +6,92 @@ import getpass
 import os
 import sys
 import acsys.status
-from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
-                                    AddToList_request, RemoveFromList_request,
-                                    StartList_request, StopList_request,
-                                    ClearList_request, RawSetting_struct,
-                                    TextSetting_struct, ScaledSetting_struct,
-                                    ApplySettings_request, Status_reply,
-                                    AnalogAlarm_reply, BasicStatus_reply,
-                                    DigitalAlarm_reply, DeviceInfo_reply,
-                                    Raw_reply, ScalarArray_reply, Scalar_reply,
+from acsys.dpm.dpm_protocol import (ServiceDiscovery_request,
+                                    AddToList_request,
+                                    RemoveFromList_request,
+                                    StartList_request,
+                                    StopList_request,
+                                    ClearList_request,
+                                    RawSetting_struct,
+                                    TextSetting_struct,
+                                    ScaledSetting_struct,
+                                    ApplySettings_request,
+                                    Status_reply, AnalogAlarm_reply,
+                                    BasicStatus_reply,
+                                    DigitalAlarm_reply,
+                                    DeviceInfo_reply, Raw_reply,
+                                    ScalarArray_reply, Scalar_reply,
                                     TextArray_reply, Text_reply,
-                                    ListStatus_reply, ApplySettings_reply,
+                                    ListStatus_reply,
+                                    ApplySettings_reply,
                                     Authenticate_request,
                                     EnableSettings_request,
-                                    TimedScalarArray_reply, Authenticate_reply)
+                                    TimedScalarArray_reply,
+                                    Authenticate_reply,
+                                    unmarshal_reply)
 
-_log = logging.getLogger(__name__)
-
-
-class _ItemCommon:
-    """Base class that defines common attributes of ItemData and
-ItemStatus."""
-
-    def __init__(self, tag):
-        self._tag = tag
-
-    @property
-    def tag(self):
-        return self._tag
-
-    def is_reading_for(self, *tags):
-        """Returns True if this object is an ItemData object and its 'tag'
-field matches the parameter 'tag'.
-
-        """
-        return False
-
-    def is_status_for(self, *tags):
-        """Returns True if this object is an ItemStatus object and its 'tag'
-field matches the parameter 'tag'.
-
-        """
-        return False
+_log = logging.getLogger('acsys')
 
 
-class ItemData(_ItemCommon):
+class ItemData:
     """An object that holds a reading from a device.
 
 DPM delivers device data using a stream of ItemData objects. The 'tag'
 field corresponds to the tag parameter used when the '.add_entry()'
 method was used to add the device to the list.
 
-The 'stamp' property is the timestamp when the data occurred.
-
-The 'data' property is the requested data. The data will be of the
-type asked in the corresponding DRF2 (specified in the call to the
-'.add_entry()' method.) For instance, if .RAW was specified, the
-'data' field will contain a bytes(). Otherwise it will contain a
-scaled, floating point value (or an array, if it's an array device),
-or a dictionary -- in the case of basic status or alarm blocks.
-
-The 'meta' property contains a dictionary of extra information about
-the device. The 'name' key holds the device name. 'di' contains the
-device index. If the device has scaling, a 'units' key will be present
-and hold the engineering units of the reading.
-
-The 'micros' property contains a list of microsecond timestamps for
-each datum in data. The index of each timestamp cooresponds to the
-same index in 'data'.
-
     """
 
-    def __init__(self, tag, stamp, data, micros=None, meta={}):
-        super().__init__(tag)
+    def __init__(self, tag, stamp, data, micros=None, meta=None):
         delta = datetime.timedelta(milliseconds=stamp)
         utc_timezone = datetime.timezone.utc
 
+        self._tag = tag
         self._stamp = datetime.datetime(1970, 1, 1, tzinfo=utc_timezone) + delta
         self._data = data
-        self._meta = meta
+        self._meta = (meta or {})
         self._micros = micros
 
     @property
+    def tag(self):
+        """Corresponds to the ref ID that was associated with the DRF request
+string."""
+        return self._tag
+
+    @property
     def stamp(self):
+        """The timestamp when the data occurred."""
         return self._stamp
 
     @property
     def data(self):
+        """The requested data. The data will be of the type asked in the
+corresponding DRF2 (specified in the call to the '.add_entry()'
+method.) For instance, if .RAW was specified, the 'data' field will
+contain a bytes(). Otherwise it will contain a scaled, floating point
+value (or an array, if it's an array device), or a dictionary -- in
+the case of basic status or alarm blocks.
+
+        """
         return self._data
 
     @property
     def meta(self):
+        """Contains a dictionary of extra information about the device. The
+'name' key holds the device name. 'di' contains the device index. If
+the device has scaling, a 'units' key will be present and hold the
+engineering units of the reading.
+
+        """
         return self._meta
 
     @property
     def micros(self):
+        """Contains a list of microsecond timestamps for each datum in
+data. The index of each timestamp cooresponds to the same index in
+'data'.
+
+        """
         return self._micros
 
     def __str__(self):
@@ -112,17 +103,23 @@ same index in 'data'.
         return f'{guaranteed_fields}}}'
 
     def is_reading_for(self, *tags):
+        """Returns True if this ItemData instance is associated with any of
+the tag values in the parameter list.
+
+        """
         return self.tag in tags
 
+    def is_status_for(self, *_tags):
+        """Returns False."""
+        return False
 
-class ItemStatus(_ItemCommon):
+
+class ItemStatus:
     """An object reporting status of an item in a DPM list.
 
 If there was an error in a request, this object will be in the stream
 instead of a ItemData object. The 'tag' field corresponds to the tag
 parameter used in the call to the '.add_entry()' method.
-
-The 'status' field describes the error that occurred with this item.
 
 If this message appears as a result of a reading request, there will
 never be an ItemData object for the 'tag' until the error condition is
@@ -134,50 +131,206 @@ result of a setting.
     """
 
     def __init__(self, tag, status):
-        super().__init__(tag)
+        self._tag = tag
         self._status = acsys.status.Status(status)
 
     @property
+    def tag(self):
+        """Corresponds to the ref ID that was associated with the DRF request
+string."""
+        return self._tag
+
+    @property
     def status(self):
+        """Describes the error that occurred with this item."""
         return self._status
 
     def __str__(self):
         return f'{{ tag: {self.tag}, status: {self.status} }}'
 
+    def is_reading_for(self, *_tags):
+        """Returns False."""
+        return False
+
     def is_status_for(self, *tags):
+        """Returns True if this ItemStatus instance is associated with any of
+the tag values in the parameter list.
+
+        """
         return self.tag in tags
 
 
-class DPM:
-    def __init__(self, con, node):
-        # These properties can be accessed without owning '_state_sem'
-        # because they're either constant or they're not manipulated
-        # across 'await' statements.
+class DPM(asyncio.Protocol):
+    """An object that manages a connection to a remote Data Pool Manager
+(DPM). Instances of this class should be obtained by a 'DPMContext'
+object used in an 'async-with' statement.
 
-        self.desired_node = node or 'MCAST'
-        self.con = con
+Creating an instance results in a dormant object. To activate it, it
+needs to be passed as the 'protocol' argument to 'asyncio.create_connection()'.
+
+'DPMContext's in an `async-statement' perform this initialization for
+you as well as clean-up properly.
+
+    """
+
+    # Constructor -- this simply defines the object instance and puts
+    # it in a dormant state. Passing it to 'asyncio.create_connection()'
+    # will activate it.
+
+    def __init__(self):
+        # These properties can be accessed without owning '_state_sem'
+        # because they're either constant or concurrent-safe or
+        # they're not manipulated across 'await' statements.
+
         self.meta = {}
+        self.buf = bytearray()
+        self._qdata = asyncio.Queue()   # queue to hold incoming
+                                        # acquisition replies
 
         self._state_sem = asyncio.Semaphore()
 
         # When accessing these properties, '_state_sem' must be owned.
 
-        self.dpm_task = None
-        self.list_id = None
-        self._dev_list = {}
-        self._qrpy = []
-        self.gen = None
-        self.active = False
-        self.can_set = False
-        self.model = None
+        self._transport = asyncio.get_event_loop().create_future()
+        self._dev_list = {}             # set of staged DRF requests
+        self._active_dev_list = {}      # DRFs being used in active
+                                        # acquisition
+        self._qrpy = []                 # queue holding futures to be
+                                        # resolved when a reply is
+                                        # received
+        self.active = False             # flag indicating acquisition status
+        self.can_set = False            # flag indicating settings are enabled
+        self.model = None               # default model to be used by
+                                        # connection
+        self.req_tmo = 2000             # ms timeout for replies
 
-        # Check to see if we're running the script in debug mode. If
-        # so, stretch the timeout for ACNET requests to 30 seconds.
+    # The '._transport' field of a DPM instance is always a
+    # 'Future'. The constructor sets it to an unresolved future. The
+    # '.connection_made()' callback will resolve it with the actual transport.
 
-        if asyncio.get_event_loop().get_debug():
-            self.req_tmo = 30000
+    async def _get_transport(self):
+        try:
+            return await asyncio.wait_for(self._transport, timeout=None)
+        except asyncio.TimeoutError as exc:
+            raise acsys.status.ACNET_DISCONNECTED from exc
+
+    # We use the state of the DPM object to initialize the state of
+    # the connection. This means a new DPM object will do the minimum
+    # to prepare the connection's state whereas a connection returning
+    # data will get its DRF requests setup and started.
+
+    async def _setup_state(self, transport):
+        async with self._state_sem as lock:
+            _log.debug('setting up DPM state')
+            self._transport.set_result(transport)
+
+            # The pending replies from a previous connection should
+            # have been cleared out before we start a new one.
+
+            assert self._qrpy == []
+
+            await self._add_to_list(lock, 0, f'#USER:{getpass.getuser()}')
+            await self._add_to_list(lock, 0, f'#PID:{os.getpid()}')
+            await self._add_to_list(lock, 0, '#TYPE:Python3')
+
+            # Did we have settings enabled in a previous connection?
+            # If so, enable them again.
+
+            if self.can_set:
+                _log.debug('re-enabling settings')
+                await self.enable_settings()
+
+            # Load up all the DRF requests.
+
+            for tag, drf in self._active_dev_list.items():
+                await self._add_to_list(lock, tag, drf)
+
+            # If the previous connection was running acquisition,
+            # start it up again.
+
+            if self.active:
+                _log.debug('re-activating data acquisition')
+                await self.start(self.model)
+
+    # Called when the connection is lost or when closing out a DPM
+    # connection. It closes the connection to DPM, if it was open, and
+    # then makes sure all queue are drained so connecting to another
+    # DPM will start with initialized state. All DRF lists are
+    # preserved so that the DPM state can be restored.
+
+    async def _shutdown_state(self, restart=False):
+        _log.debug('shutting down DPM state')
+        async with self._state_sem:
+
+            # Clean up the transport resources.
+
+            (await self._get_transport()).abort()
+            self._transport = asyncio.get_event_loop().create_future()
+
+            # Loop through all pending requests and resolve them with
+            # exceptions.
+
+            for ii in self._qrpy:
+                ii.set_exception(acsys.status.ACNET_DISCONNECTED)
+            self._qrpy = []
+
+        # Must do this outside the previous block because tasks
+        # reading the queue contents may have to grab the semaphore
+        # and we don't want to dead-lock.
+
+        _log.debug('waiting for reply queue to be drained')
+        await asyncio.wait_for(self._qdata.join(), 1000)
+
+        if restart:
+            self.connect()
+
+    # Called when the TCP socket has connected to the remote machine.
+    # The 'transport' parameter is the object to use to write data to
+    # the remote end. A future is scheduled to initialize the state of
+    # the DPM object.
+
+    def connection_made(self, transport):
+        self.buf = bytearray()
+        _log.info('connected to DPM')
+        transport.write(b'GET /dpm HTTP/1.1\r\n\r\n')
+        asyncio.ensure_future(self._setup_state(transport))
+
+    # Called when we lose our connection to DPM.
+
+    def connection_lost(self, exc):
+        if exc is not None:
+            _log.warning('lost connection to DPM, %s', exc)
+            asyncio.ensure_future(self._shutdown_state(restart=True))
         else:
-            self.req_tmo = 1000
+            _log.debug('closed connection to DPM')
+
+    @staticmethod
+    def _get_packet(buf):
+        if len(buf) >= 4:
+            total = (buf[0] << 24) + (buf[1] << 16) + \
+                (buf[2] << 8) + buf[3]
+            if len(buf) >= total + 4:
+                return (iter(memoryview(buf)[4:(total + 4)]),
+                        buf[(total + 4):])
+        return (None, buf)
+
+    def data_received(self, data):
+        self.buf += data
+        pkt, rest = DPM._get_packet(self.buf)
+        while pkt is not None:
+            msg = self._xlat_reply(unmarshal_reply(pkt))
+
+            if isinstance(msg, list):
+                for ii in msg:
+                    self._qdata.put_nowait(ii)
+            elif isinstance(msg, (ItemData, ItemStatus)):
+                self._qdata.put_nowait(msg)
+            elif msg is not None:
+                self._qrpy[0].set_result(msg)
+                self._qrpy.pop()
+
+            pkt, rest = DPM._get_packet(rest)
+        self.buf = rest
 
     def _xlat_reply(self, msg):
         if isinstance(msg, Status_reply):
@@ -195,9 +348,8 @@ class DPM:
             return ItemData(msg.ref_id, msg.timestamp, msg.data,
                             meta=self.meta.get(msg.ref_id, {}))
         if isinstance(msg, ApplySettings_reply):
-            for reply in msg.status:
-                self._qrpy.append(ItemStatus(reply.ref_id, reply.status))
-            return self._qrpy.pop(0) if len(self._qrpy) > 0 else None
+            return [ItemStatus(reply.ref_id, reply.status)
+                    for reply in msg.status]
         if isinstance(msg, ListStatus_reply):
             return None
         if isinstance(msg, DeviceInfo_reply):
@@ -214,145 +366,84 @@ class DPM:
                             micros=msg.micros)
         return msg
 
-    def __aiter__(self):
-        return self
+    async def connect(self):
+        loop = asyncio.get_event_loop()
+        con_fut = loop.create_connection(lambda: self,
+                                         host='dce46.fnal.gov',
+                                         port=6805)
+        await asyncio.wait_for(con_fut, 2000)
 
-    async def __anext__(self):
-        while True:
-            try:
-                if len(self._qrpy) > 0:
-                    return self._qrpy.pop(0)
+        # To reach this spot, two things will have happened: 1) we
+        # actually made a connection to a remote DPM. If we didn't, an
+        # exception would be raised. And 2) the .connect_made() method
+        # has been called and finished executing. At this point,
+        # ._setup_state() has been scheduled, but might not have
+        # completed yet. We can't return yet because the user's script
+        # may try to send requests to DPM. So we block here until the
+        # future that holds the transport gets resolved.
 
-                _, msg = await self.gen.__anext__()
-                msg = self._xlat_reply(msg)
-
-                # If the message is not None, return it. If it is
-                # None, start at the top of the loop.
-
-                if msg is not None:
-                    return msg
-                continue
-
-            except acsys.status.Status as exception:
-
-                # If we're disconnected from ACNET, re-throw the
-                # exception because there's more work to be done to
-                # restore the state of the program.
-
-                if exception == acsys.status.ACNET_DISCONNECTED:
-                    raise
-
-            except GeneratorExit:
-                pass
-
-            # If we've reached here, DPM returned a fatal ACNET
-            # status. Whatever it was, we need to pick another DPM and
-            # add all the current requests.
-
-            _log.warning('DPM(id: %s) connection closed ... retrying',
-                         str(self.list_id))
-            await self._restore_state()
+        await self._transport
 
     async def replies(self, tmo=None):
         """Returns an async generator which yields each reply from DPM. The
 optional `tmo` parameter indicates how long to wait between replies
 before an `asyncio.TimeoutError` is raised.
 
-This method is the preferred way to iterate over DPM replies.
-
         """
         while True:
-            reply = await asyncio.wait_for(self.__anext__(), tmo)
-            if reply is None:
-                return
-            yield reply
+            pkt = await asyncio.wait_for(self._qdata.get(), tmo)
+            self._qdata.task_done()
+            yield pkt
 
-    async def _restore_state(self):
-        async with self._state_sem as lock:
-            await self._connect(lock)
-            self._qrpy = []
-            if self.can_set:
-                self.enable_settings()
-            await self._add_entries(lock, self._dev_list.items())
-            if self.active:
-                await self.start(self.model)
-
-    async def _find_dpm(self):
-        dpm = await find_dpm(self.con, node=self.desired_node)
-
-        if dpm is not None:
-            task = f'DPMD@{dpm}'
-            self.dpm_task = await self.con.make_canonical_taskname(task)
-            _log.info('using DPM task: %s', task)
-        else:
-            self.dpm_task = None
-
-    async def _connect(self, lock):
-        await self._find_dpm()
-
-        # Send an OPEN LIST request to the DPM.
-
-        gen = self.con.request_stream(
-            self.dpm_task, OpenList_request(),
-            timeout=self.req_tmo, proto=acsys.dpm.dpm_protocol)
-        _, msg = await gen.asend(None)
-        _log.info('DPM returned list id %d', msg.list_id)
-
-        # Update object state.
-
-        self.gen = gen
-        self.list_id = msg.list_id
-        await self._add_to_list(lock, 0, f'#USER:{getpass.getuser()}')
-        await self._add_to_list(lock, 0, f'#PID:{os.getpid()}')
-        await self._add_to_list(lock, 0, '#TYPE:Python3')
-
-    def get_entry(self, tag):
+    async def get_entry(self, tag, active=False):
         """Returns the DRF string associated with the 'tag'.
+
+The DPM object keeps track of two sets of DRF requests; one set
+represents requests which become active after a call to 'DPM.start()'.
+The other set is defined when data acquisition is active.
+
+If the 'active' parameter is False or data acquisition isn't
+happening, the staged requests are searched. If 'active' is True and
+acquisition is happening, the active requests are searched.
+
         """
-        self._dev_list.get(tag)
+        async with self._state_sem:
+            if active and self.active:
+                return self._active_dev_list.get(tag)
+            return self._dev_list.get(tag)
 
-    async def _retryable_request(self, msg):
-        for _tries in range(2):
-            _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                                  timeout=self.req_tmo,
-                                                  proto=acsys.dpm.dpm_protocol)
-            sts = acsys.status.Status(msg.status)
+    # Makes a request to DPM.
 
-            if not sts.is_fatal:
-                return
-            if sts != acsys.status.ACNET_REQTMO:
-                raise sts
-
-            # Received a request timeout. Log it and retry the
-            # operation.
-
-            _log.info('DPM(%i) retrying request: %s', self.list_id, msg)
-
-        raise acsys.status.ACNET_REQTMO
+    async def _mk_request(self, _lock, msg, wait=False):
+        xport = await self._get_transport()
+        msg = bytes(msg.marshal())
+        xport.write(len(msg).to_bytes(4, byteorder='big') + msg)
+        if wait:
+            fut = asyncio.get_event_loop().create_future()
+            self._qrpy.append(fut)
+            return fut
+        return None
 
     async def clear_list(self):
         """Clears all entries in the tag/drf dictionary.
 
-Clearing the list doesn't stop incoming replies. After clearing the
-list, either '.stop()' or '.start()' needs to be called.
+Clearing the list doesn't stop incoming data acquisition, it clears
+the list to be sent with the next call to 'dpm.start()'. To stop data
+acquisition, call 'dpm.stop()'.
 
         """
-
         msg = ClearList_request()
+        msg.list_id = 0                 # ignored in TCP connections
+        _log.debug('clearing list')
 
-        async with self._state_sem:
-            _log.debug('DPM(id: %d) clearing list', self.list_id)
-            msg.list_id = self.list_id
-            await self._retryable_request(msg)
-
-            # DPM has been updated so we can safely clear the dictionary.
-
+        async with self._state_sem as lock:
+            await self._mk_request(lock, msg)
             self._dev_list = {}
 
     async def _add_to_list(self, lock, tag, drf):
         msg = AddToList_request()
 
-        msg.list_id = self.list_id
+        msg.list_id = 0                 # ignored in TCP connections
         msg.ref_id = tag
         msg.drf_request = drf
 
@@ -360,11 +451,12 @@ list, either '.stop()' or '.start()' needs to be called.
         # the status will be raised for us. If the DPM returns a fatal
         # status in the reply message, we raise it ourselves.
 
-        _log.debug('DPM(id: %d) adding tag:%d, drf:%s', self.list_id, tag, drf)
-        await self._retryable_request(msg)
+        _log.debug('adding tag:%d, drf:%s', tag, drf)
+        await self._mk_request(lock, msg)
 
         # DPM has been updated so we can safely add the entry to our
-        # device list.
+        # device list. (We don't add entries starting with "#" because
+        # those are property hacks.
 
         if drf[0] != "#":
             self._dev_list[tag] = drf
@@ -405,45 +497,11 @@ is non-deterministic.
         else:
             raise ValueError('tag must be an integer')
 
-    # Private method which sends, concurrently, a list of DRF entries
-    # to DPM.
-
-    async def _add_entries(self, lock, entries):
-        async def xact(tag, drf):
-            try:
-                await self._add_to_list(lock, tag, drf)
-                return []
-            except acsys.status.Status as exception:
-                return [(tag, exception)]
-
-        results = []
-
-        # Break the list of entries into groups of, at most, 100
-        # entries.
-
-        chunks = [entries[ii:ii + 100] for ii in range(0, len(entries), 100)]
-        loop = asyncio.get_event_loop()
-        for chunk in chunks:
-
-            # Convert each entry in the chunk into a coroutine that
-            # performs the request.
-
-            batch = [loop.create_task(xact(tag, drf)) for tag, drf in chunk]
-
-            # Run all the coroutines at the same time and append the
-            # results to the total result.
-
-            for result in asyncio.as_completed(batch):
-                results += await result
-        return results
-
     async def add_entries(self, entries):
         """Adds multiple entries.
 
 This is a convenience function to add a list of tag/drf pairs to DPM's
-request list. It sends the requests in parallel so, if you have a
-large set of devices, this function should complete much faster than
-adding them one by one.
+request list.
         """
 
         # Validate the array of parameters.
@@ -455,7 +513,8 @@ adding them one by one.
                 raise ValueError('drf must be a string -- found {drf}')
 
         async with self._state_sem as lock:
-            return await self._add_entries(lock, entries)
+            for tag, drf in entries:
+                await self._add_to_list(lock, tag, drf)
 
     async def remove_entry(self, tag):
         """Removes an entry from the list of devices to be acquired.
@@ -477,13 +536,12 @@ Data associated with the 'tag' will continue to be returned until the
             # Create the message and set the fields appropriately.
 
             msg = RemoveFromList_request()
+            msg.list_id = 0             # ignored in TCP connections
+            msg.ref_id = tag
+            _log.debug('removing tag:%d', tag)
 
-            async with self._state_sem:
-                msg.list_id = self.list_id
-                msg.ref_id = tag
-
-                _log.debug('DPM(id: %d) removing tag:%d', self.list_id, tag)
-                await self._retryable_request(msg)
+            async with self._state_sem as lock:
+                await self._mk_request(lock, msg)
 
                 # DPM has been updated so we can safely remove the
                 # entry from our device list.
@@ -491,17 +549,6 @@ Data associated with the 'tag' will continue to be returned until the
                 del self._dev_list[tag]
         else:
             raise ValueError('tag must be an integer')
-
-    async def _start(self, lock):
-        _log.debug('DPM(id: %d) starting list', self.list_id)
-        msg = StartList_request()
-        msg.list_id = self.list_id
-
-        if self.model:
-            msg.model = self.model
-
-        await self._retryable_request(msg)
-        self.active = True
 
     async def start(self, model=None):
         """Start/restart data acquisition using the current request list.
@@ -512,11 +559,19 @@ method is called. This allows a script to make major adjustments and
 then enable the changes all at once.
 
         """
-
+        _log.debug('starting DPM list')
         self.model = model
+        msg = StartList_request()
+        msg.list_id = 0                 # ignored in TCP connections
+
+        if self.model:
+            msg.model = self.model
 
         async with self._state_sem as lock:
-            await self._start(lock)
+            fut = await self._mk_request(lock, msg, wait=True)
+            self.active = True
+            self._active_dev_list = self._dev_list.copy()
+            await fut
 
     async def stop(self):
         """Stops data acquisition.
@@ -530,16 +585,13 @@ calling this method, a few readings may still get delivered.
         """
 
         msg = StopList_request()
+        msg.list_id = 0
+        _log.debug('stopping DPM list')
 
-        async with self._state_sem:
-            _log.debug('DPM(id: %d) stopping list', self.list_id)
-            msg.list_id = self.list_id
-            await self._retryable_request(msg)
+        async with self._state_sem as lock:
+            await self._mk_request(lock, msg)
             self.active = False
-
-    async def _shutdown(self):
-        if self.gen:
-            await self.gen.aclose()
+            self._active_dev_list = {}
 
     @staticmethod
     def _build_struct(ref_id, value):
@@ -560,20 +612,18 @@ calling this method, a few readings may still get delivered.
 
     # Performs one round-trip of the Kerberos validation.
 
-    async def _auth_step(self, tok):
-        while True:
-            msg = Authenticate_request()
-            msg.list_id = self.list_id
-            if tok is not None:
-                msg.token = tok
+    async def _auth_step(self, lock, tok):
+        msg = Authenticate_request()
+        msg.list_id = 0
+        if tok is not None:
+            msg.token = tok
 
-            _, msg = await self.con.request_reply(
-                self.dpm_task, msg, timeout=self.req_tmo,
-                proto=acsys.dpm.dpm_protocol)
+        fut = await self._mk_request(lock, msg, wait=True)
 
-            if not isinstance(msg, Authenticate_reply):
-                raise TypeError(f'unexpected protocol message: %{msg}')
-            return msg
+        msg = await fut
+        if not isinstance(msg, Authenticate_reply):
+            raise TypeError(f'unexpected protocol message: %{msg}')
+        return msg
 
     async def enable_settings(self, role=None):
         """Enable settings for the current DPM session.
@@ -621,20 +671,21 @@ the role.
             raise ValueError('Kerberos ticket expired')
 
         try:
-            # Create a security context used to sign messages.
+            async with self._state_sem as lock:
 
-            msg = await self._auth_step(None)
-            service_name = gssapi.Name(msg.serviceName.translate(
-                {ord('@'): '/', ord('\\'): None}))
-            _log.info('service name: %s', service_name)
-            ctx = gssapi.SecurityContext(name=service_name, usage='initiate',
-                                         creds=creds,
-                                         flags=[requirement_flag.replay_detection,
-                                                requirement_flag.integrity,
-                                                requirement_flag.out_of_sequence_detection],
-                                         mech=gssapi.MechType.kerberos)
-            try:
-                async with self._state_sem as lock:
+                # Create a security context used to sign messages.
+
+                msg = await self._auth_step(lock, None)
+                service_name = gssapi.Name(msg.serviceName.translate(
+                    {ord('@'): '/', ord('\\'): None}))
+                _log.info('service name: %s', service_name)
+                ctx = gssapi.SecurityContext(name=service_name, usage='initiate',
+                                             creds=creds,
+                                             flags=[requirement_flag.replay_detection,
+                                                    requirement_flag.integrity,
+                                                    requirement_flag.out_of_sequence_detection],
+                                             mech=gssapi.MechType.kerberos)
+                try:
                     if role is not None:
                         await self._add_to_list(lock, 0, f'#ROLE:{role}')
 
@@ -643,7 +694,7 @@ the role.
 
                     in_tok = None
                     while not ctx.complete:
-                        msg = await self._auth_step(bytes(ctx.step(in_tok)))
+                        msg = await self._auth_step(lock, bytes(ctx.step(in_tok)))
 
                         if not hasattr(msg, 'token'):
                             break
@@ -655,15 +706,15 @@ the role.
                     # message.
 
                     msg = EnableSettings_request()
-                    msg.list_id = self.list_id
+                    msg.list_id = 0
                     msg.message = b'1234'
                     msg.MIC = ctx.get_signature(msg.message)
 
-                    await self._retryable_request(msg)
+                    await self._mk_request(lock, msg)
                     self.can_set = True
-                    _log.info('DPM(id: %d) settings enabled', self.list_id)
-            finally:
-                del ctx
+                    _log.info('settings enabled')
+                finally:
+                    del ctx
         finally:
             del creds
 
@@ -671,7 +722,7 @@ the role.
         """A placeholder for apply setting docstring
         """
 
-        async with self._state_sem:
+        async with self._state_sem as lock:
             if not self.can_set:
                 raise RuntimeError('settings are disabled')
 
@@ -698,37 +749,38 @@ the role.
                         msg.scaled_array = []
                     msg.scaled_array.append(dpm_struct)
 
-            msg.list_id = self.list_id
-            await self._retryable_request(msg)
+            msg.list_id = 0
+            await self._mk_request(lock, msg)
 
 
 class DPMContext:
     """Creates a communication context with one DPM (of a pool of DPMs.)
-This context should be used in an `async-with-statement` so that
+This context must be used in an `async-with-statement` so that
 resources are properly released when the block is exited.
 
-    async with DpmContext(con) as dpm:
+    async with DpmContext() as dpm:
         # 'dpm' is an instance of DPM and is usable while
         # in this block.
 
-Creating a DPM context isn't a trivial process, so it should be done
-at a higher level - preferrably as the script starts up. If a specific
-DPM node isn't required, the context will do a service discovery to
-choose an available DPM. Future versions of this package may move the
-Kerberos negotiation into this section as well, instead of hiding it
-in `.settings_enable()`, so it will be even more expensive.
+Creating a DPM context isn't necessarily a trivial process, so it
+should be done at a higher level - preferrably as the script starts
+up. If a specific DPM node isn't required, the context will do a
+service discovery to choose an available DPM. Future versions of this
+package may move the Kerberos negotiation into this section as well,
+instead of hiding it in `.settings_enable()`, so it will be even more
+expensive.
 
     """
 
-    def __init__(self, con, *, dpm_node=None):
-        self.dpm = DPM(con, dpm_node)
+    def __init__(self):
+        self.dpm = DPM()
 
     async def __aenter__(self):
         _log.debug('entering DPM context')
-        await self.dpm._restore_state()
+        await self.dpm.connect()
         return self.dpm
 
     async def __aexit__(self, exc_type, exc, trace_back):
         _log.debug('exiting DPM context')
-        await self.dpm._shutdown()
+        await self.dpm._shutdown_state()
         return False
