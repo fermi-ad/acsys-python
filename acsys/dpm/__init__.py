@@ -30,7 +30,7 @@ from acsys.dpm.dpm_protocol import (ServiceDiscovery_request,
                                     Authenticate_reply,
                                     unmarshal_reply)
 
-_log = logging.getLogger('acsys')
+_log = logging.getLogger(__name__)
 
 
 class ItemData:
