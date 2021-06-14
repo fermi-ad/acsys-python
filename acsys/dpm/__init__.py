@@ -178,6 +178,8 @@ you as well as clean-up properly.
     # will activate it.
 
     def __init__(self):
+        super().__init__()
+
         # These properties can be accessed without owning '_state_sem'
         # because they're either constant or concurrent-safe or
         # they're not manipulated across 'await' statements.
