@@ -1037,13 +1037,10 @@ def consumeRawInt(it, tag):
     itTag = it.__next__()
     itLen = itTag & 0xf
     if (itTag & 0xf0) == tag and itLen > 0 and itLen <= 8:
-        it = islice(it, itLen)
-        retVal = it.__next__()
-        if (0x80 & retVal) != 0:
-            retVal |= -256
-        for xx in it:
-            retVal = (retVal << 8) + xx
-        return int(retVal)
+        val = int.from_bytes(islice(it, 0, itLen), 'big')
+        if val > (1 << (itLen * 8 - 1)):
+            val -= 1 << (itLen * 8)
+        return val
     else:
         raise ProtocolError("bad tag or length")
 
