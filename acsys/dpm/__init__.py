@@ -372,7 +372,7 @@ you as well as clean-up properly.
         loop = asyncio.get_event_loop()
         con_fut = loop.create_connection(lambda: self,
                                          host='dce46.fnal.gov',
-                                         port=6805)
+                                         port=6802)
         await asyncio.wait_for(con_fut, 2000)
 
         # To reach this spot, two things will have happened: 1) we
