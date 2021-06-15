@@ -1034,7 +1034,7 @@ def marshal_reply(val):
 from itertools import islice
 
 def consumeRawInt(it, tag):
-    itTag = it.__next__()
+    itTag = next(it)
     itLen = itTag & 0xf
     if (itTag & 0xf0) == tag and itLen > 0 and itLen <= 8:
         val = int.from_bytes(islice(it, 0, itLen), 'big')
@@ -1045,7 +1045,7 @@ def consumeRawInt(it, tag):
         raise ProtocolError("bad tag or length")
 
 def unmarshal_bool(ii):
-    val = ii.__next__()
+    val = next(ii)
     if val == 112:
         return False
     elif val == 113:
@@ -1094,8 +1094,8 @@ def unmarshal_array(ii, fn):
     return [fn(ii) for x in range(consumeRawInt(ii, 0x50))]
 
 def unmarshal_header(ii):
-    if ii.__next__() != 83 or ii.__next__() != 68 or \
-       ii.__next__() != 68 or ii.__next__() != 2 or \
+    if next(ii) != 83 or next(ii) != 68 or \
+       next(ii) != 68 or next(ii) != 2 or \
        consumeRawInt(ii, 0x50) != 3:
         raise ProtocolError("invalid header")
     elif consumeRawInt(ii, 0x10) != -1321570246:
