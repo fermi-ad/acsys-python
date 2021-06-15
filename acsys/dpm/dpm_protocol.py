@@ -1068,11 +1068,7 @@ def unmarshal_int32(ii):
         raise ProtocolError("value out of range for int32")
 
 def unmarshal_int64(ii):
-    val = consumeRawInt(ii, 0x10)
-    if int(-9223372036854775808) <= val <= int(9223372036854775807):
-        return val
-    else:
-        raise ProtocolError("value out of range for int64")
+    return consumeRawInt(ii, 0x10)
 
 _unpack_float = struct.Struct('>xd').unpack
 
