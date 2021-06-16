@@ -177,7 +177,7 @@ you as well as clean-up properly.
     # it in a dormant state. Passing it to 'asyncio.create_connection()'
     # will activate it.
 
-    def __init__(self):
+    def __init__(self, port):
         super().__init__()
 
         # These properties can be accessed without owning '_state_sem'
@@ -185,6 +185,7 @@ you as well as clean-up properly.
         # they're not manipulated across 'await' statements.
 
         self.meta = {}
+        self.port = port
         self.buf = bytearray()
         self._qdata = asyncio.Queue()   # queue to hold incoming
                                         # acquisition replies
@@ -371,8 +372,8 @@ you as well as clean-up properly.
     async def connect(self):
         loop = asyncio.get_event_loop()
         con_fut = loop.create_connection(lambda: self,
-                                         host='dce46.fnal.gov',
-                                         port=6802)
+                                         host='acsys-proxy.fnal.gov',
+                                         port=self.port)
         await asyncio.wait_for(con_fut, 2000)
 
         # To reach this spot, two things will have happened: 1) we
@@ -774,8 +775,8 @@ expensive.
 
     """
 
-    def __init__(self):
-        self.dpm = DPM()
+    def __init__(self, port=6802):
+        self.dpm = DPM(port)
 
     async def __aenter__(self):
         _log.debug('entering DPM context')
