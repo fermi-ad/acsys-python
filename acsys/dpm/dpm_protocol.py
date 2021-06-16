@@ -1054,11 +1054,17 @@ def unmarshal_bool(ii):
         raise ProtocolError("expected boolean value")
 
 def unmarshal_int16(ii):
-    val = consumeRawInt(ii, 0x10)
-    if val >= -0x8000 and val < 0x8000:
-        return int(val)
-    else:
+    tag = next(ii)
+    if tag == 0x11:
+        val = next(ii)
+        return val if val < 128 else val - 256
+    elif tag == 0x12:
+        hi = next(ii)
+        return (next(ii) + (hi if hi < 128 else hi - 256) * 256)
+    elif (tag & 0xf0) == 0x10:
         raise ProtocolError("value out of range for int16")
+    else:
+        raise ProtocolError("unknown field found")
 
 def unmarshal_int32(ii):
     val = consumeRawInt(ii, 0x10)
@@ -1104,7 +1110,7 @@ def unmarshal_RawSetting_struct(ii):
     else:
         tmp = RawSetting_struct()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == 32568:
@@ -1120,7 +1126,7 @@ def unmarshal_ScaledSetting_struct(ii):
     else:
         tmp = ScaledSetting_struct()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == 32568:
@@ -1136,7 +1142,7 @@ def unmarshal_TextSetting_struct(ii):
     else:
         tmp = TextSetting_struct()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == 32568:
@@ -1152,7 +1158,7 @@ def unmarshal_SettingStatus_struct(ii):
     else:
         tmp = SettingStatus_struct()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == 17492:
@@ -1174,7 +1180,7 @@ def unmarshal_OpenList_request(ii):
     else:
         tmp = OpenList_request()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == -25120:
                 tmp.location = unmarshal_string(ii)
             else:
@@ -1188,7 +1194,7 @@ def unmarshal_AddToList_request(ii):
     else:
         tmp = AddToList_request()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 7851:
@@ -1206,7 +1212,7 @@ def unmarshal_Authenticate_request(ii):
     else:
         tmp = Authenticate_request()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == -29279:
@@ -1222,7 +1228,7 @@ def unmarshal_EnableSettings_request(ii):
     else:
         tmp = EnableSettings_request()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 8141:
@@ -1240,7 +1246,7 @@ def unmarshal_RemoveFromList_request(ii):
     else:
         tmp = RemoveFromList_request()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 7851:
@@ -1256,7 +1262,7 @@ def unmarshal_StartList_request(ii):
     else:
         tmp = StartList_request()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 24163:
@@ -1272,7 +1278,7 @@ def unmarshal_ClearList_request(ii):
     else:
         tmp = ClearList_request()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             else:
@@ -1286,7 +1292,7 @@ def unmarshal_StopList_request(ii):
     else:
         tmp = StopList_request()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             else:
@@ -1300,7 +1306,7 @@ def unmarshal_ApplySettings_request(ii):
     else:
         tmp = ApplySettings_request()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 22088:
                 tmp.user_name = unmarshal_string(ii)
             elif fld == -6112:
@@ -1322,7 +1328,7 @@ def unmarshal_ServiceDiscovery_reply(ii):
     else:
         tmp = ServiceDiscovery_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7859:
                 tmp.load = unmarshal_int16(ii)
             elif fld == 4527:
@@ -1338,7 +1344,7 @@ def unmarshal_OpenList_reply(ii):
     else:
         tmp = OpenList_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             else:
@@ -1352,7 +1358,7 @@ def unmarshal_AddToList_reply(ii):
     else:
         tmp = AddToList_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 7851:
@@ -1370,7 +1376,7 @@ def unmarshal_RemoveFromList_reply(ii):
     else:
         tmp = RemoveFromList_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 7851:
@@ -1388,7 +1394,7 @@ def unmarshal_StartList_reply(ii):
     else:
         tmp = StartList_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 17492:
@@ -1404,7 +1410,7 @@ def unmarshal_ListStatus_reply(ii):
     else:
         tmp = ListStatus_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 17492:
@@ -1420,7 +1426,7 @@ def unmarshal_Status_reply(ii):
     else:
         tmp = Status_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1440,7 +1446,7 @@ def unmarshal_DeviceInfo_reply(ii):
     else:
         tmp = DeviceInfo_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -32035:
@@ -1464,7 +1470,7 @@ def unmarshal_Scalar_reply(ii):
     else:
         tmp = Scalar_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1486,7 +1492,7 @@ def unmarshal_ScalarArray_reply(ii):
     else:
         tmp = ScalarArray_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1508,7 +1514,7 @@ def unmarshal_Raw_reply(ii):
     else:
         tmp = Raw_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1530,7 +1536,7 @@ def unmarshal_Text_reply(ii):
     else:
         tmp = Text_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1552,7 +1558,7 @@ def unmarshal_TextArray_reply(ii):
     else:
         tmp = TextArray_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1574,7 +1580,7 @@ def unmarshal_AnalogAlarm_reply(ii):
     else:
         tmp = AnalogAlarm_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1608,7 +1614,7 @@ def unmarshal_DigitalAlarm_reply(ii):
     else:
         tmp = DigitalAlarm_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1642,7 +1648,7 @@ def unmarshal_BasicStatus_reply(ii):
     else:
         tmp = BasicStatus_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1670,7 +1676,7 @@ def unmarshal_TimedScalarArray_reply(ii):
     else:
         tmp = TimedScalarArray_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1694,7 +1700,7 @@ def unmarshal_ApplySettings_reply(ii):
     else:
         tmp = ApplySettings_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 17492:
                 tmp.status = unmarshal_array(ii, unmarshal_SettingStatus_struct)
             else:
@@ -1708,7 +1714,7 @@ def unmarshal_Authenticate_reply(ii):
     else:
         tmp = Authenticate_reply()
         for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+            fld = unmarshal_int16(ii)
             if fld == 25400:
                 tmp.serviceName = unmarshal_string(ii)
             elif fld == -29279:
@@ -1723,7 +1729,7 @@ def unmarshal_request(ii):
        will be raised."""
     try:
         unmarshal_header(ii)
-        msg = consumeRawInt(ii, 0x10)
+        msg = unmarshal_int16(ii)
         if msg == -8230:
             return unmarshal_ServiceDiscovery_request(ii)
         elif msg == 2076:
@@ -1755,7 +1761,7 @@ def unmarshal_reply(ii):
        will be raised."""
     try:
         unmarshal_header(ii)
-        msg = consumeRawInt(ii, 0x10)
+        msg = unmarshal_int16(ii)
         if msg == -12930:
             return unmarshal_ServiceDiscovery_reply(ii)
         elif msg == 13470:
