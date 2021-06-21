@@ -234,7 +234,7 @@ you as well as clean-up properly.
 
             await self._add_to_list(lock, 0, f'#USER:{getpass.getuser()}')
             await self._add_to_list(lock, 0, f'#PID:{os.getpid()}')
-            await self._add_to_list(lock, 0, '#TYPE:Python3')
+            await self._add_to_list(lock, 0, '#TYPE:Python3/TCP')
 
             # Did we have settings enabled in a previous connection?
             # If so, enable them again.
