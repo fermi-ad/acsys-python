@@ -755,7 +755,7 @@ expensive.
 
     """
 
-    def __init__(self, *, port=6802):
+    def __init__(self, *, port=6805):
         self.dpm = DPM(port)
 
     async def __aenter__(self):
