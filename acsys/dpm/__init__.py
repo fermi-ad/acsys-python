@@ -1,4 +1,3 @@
-import datetime
 import asyncio
 import importlib
 import logging
@@ -6,6 +5,7 @@ import getpass
 import os
 import sys
 import acsys.status
+from datetime import (timezone, datetime, timedelta)
 from acsys.dpm.dpm_protocol import (ServiceDiscovery_request,
                                     AddToList_request,
                                     RemoveFromList_request,
@@ -43,14 +43,13 @@ method was used to add the device to the list.
     """
 
     def __init__(self, tag, stamp, data, micros=None, meta=None):
-        delta = datetime.timedelta(milliseconds=stamp)
-        utc_timezone = datetime.timezone.utc
-
         self._tag = tag
-        self._stamp = datetime.datetime(1970, 1, 1, tzinfo=utc_timezone) + delta
-        self._data = data
         self._meta = (meta or {})
-        self._micros = micros
+        base_time = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        if micros is None:
+            self._data = [(base_time + timedelta(milliseconds=stamp), data)]
+        else:
+            self._data = list(zip([base_time + timedelta(microseconds=stamp) for stamp in micros], data))
 
     @property
     def tag(self):
@@ -59,18 +58,13 @@ string."""
         return self._tag
 
     @property
-    def stamp(self):
-        """The timestamp when the data occurred."""
-        return self._stamp
-
-    @property
     def data(self):
-        """The requested data. The data will be of the type asked in the
-corresponding DRF2 (specified in the call to the '.add_entry()'
-method.) For instance, if .RAW was specified, the 'data' field will
-contain a bytes(). Otherwise it will contain a scaled, floating point
-value (or an array, if it's an array device), or a dictionary -- in
-the case of basic status or alarm blocks.
+        """An array of timestamp/value pairs. The value will be of the type
+asked in the corresponding DRF2 (specified in the call to the
+'.add_entry()' method.) For instance, if .RAW was specified, the value
+field will contain a bytes(). Otherwise it will contain a scaled,
+floating point value (or an array, if it's an array device), or a
+dictionary -- in the case of basic status or alarm blocks.
 
         """
         return self._data
@@ -85,22 +79,8 @@ engineering units of the reading.
         """
         return self._meta
 
-    @property
-    def micros(self):
-        """Contains a list of microsecond timestamps for each datum in
-data. The index of each timestamp cooresponds to the same index in
-'data'.
-
-        """
-        return self._micros
-
     def __str__(self):
-        guaranteed_fields = (f'{{ tag: {self.tag}, stamp: {self.stamp}, '
-                             f'data: {self.data}, meta: {self.meta}')
-
-        if self.micros:
-            return f'{guaranteed_fields}, micros: {self.micros}}}'
-        return f'{guaranteed_fields}}}'
+        return f'{{ tag: {self.tag}, data: {self.data}, meta: {self.meta} }}'
 
     def is_reading_for(self, *tags):
         """Returns True if this ItemData instance is associated with any of
