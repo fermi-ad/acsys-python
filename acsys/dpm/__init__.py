@@ -70,6 +70,14 @@ dictionary -- in the case of basic status or alarm blocks.
         return self._data
 
     @property
+    def stamp(self):
+        return self._data[0][0]
+
+    @property
+    def value(self):
+        return self._data[0][1]
+
+    @property
     def meta(self):
         """Contains a dictionary of extra information about the device. The
 'name' key holds the device name. 'di' contains the device index. If
