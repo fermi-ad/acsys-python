@@ -31,5 +31,7 @@ async def my_client(con):
             if evt_res.is_reading_for(0):
                 for (stamp, value) in evt_res.data:
                     print(f'received: {stamp}, {value}')
+            else:
+                raise RuntimeError(f'expected ItemData, got {evt_res}')
 
 acsys.run_client(my_client)
