@@ -19,7 +19,7 @@ async def my_client(con):
 
         # Add acquisition requests
 
-        await dpm.add_entry(0, 'Z:CUBE_X.SETTING@I')
+        await dpm.add_entry(0, 'M:OUTTMP@p,100H')
 
         # Start acquisition
 
@@ -28,9 +28,8 @@ async def my_client(con):
         # Process incoming data
 
         async for evt_res in dpm.replies():
-            print(f'received: {evt_res}')
-            assert evt_res.is_reading_for(0)
-            break
-
+            if evt_res.is_reading_for(0):
+                for (stamp, value) in evt_res.data:
+                    print(f'received: {stamp}, {value}')
 
 acsys.run_client(my_client)
