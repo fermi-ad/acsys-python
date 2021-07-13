@@ -375,16 +375,36 @@ you as well as clean-up properly.
 
         await self._transport
 
-    async def replies(self, tmo=None):
+    async def replies(self, tmo=None, model=None):
         """Returns an async generator which yields each reply from DPM. The
 optional `tmo` parameter indicates how long to wait between replies
 before an `asyncio.TimeoutError` is raised.
 
         """
-        while True:
-            pkt = await asyncio.wait_for(self._qdata.get(), tmo)
-            self._qdata.task_done()
-            yield pkt
+        should_stop = False
+
+        try:
+            # If we're not active, then the user is expexting this
+            # generator to do the start/stop management.
+
+            if not self.active:
+                await self.start(model)
+                should_stop = True
+
+            while True:
+                pkt = await asyncio.wait_for(self._qdata.get(), tmo)
+                self._qdata.task_done()
+                yield pkt
+        finally:
+            # The generator has been exited. If this function started
+            # acquisition, then it should stop it. When we get a reply
+            # for the `.stop()`, we know we won't get any more data
+            # replies. `._qdata` may contain some stale entries so we
+            # throw it away and create a new, empty queue.
+
+            if should_stop:
+                await self.stop()
+                self._qdata = asyncio.Queue()
 
     async def get_entry(self, tag, active=False):
         """Returns the DRF string associated with the 'tag'.
