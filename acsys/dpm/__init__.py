@@ -4,8 +4,8 @@ import logging
 import getpass
 import os
 import sys
-import acsys.status
 from datetime import (timezone, datetime, timedelta)
+import acsys.status
 from acsys.dpm.dpm_protocol import (ServiceDiscovery_request,
                                     AddToList_request,
                                     RemoveFromList_request,
