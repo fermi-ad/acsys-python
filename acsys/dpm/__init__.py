@@ -11,6 +11,7 @@ from acsys.dpm.dpm_protocol import (ServiceDiscovery_request,
                                     RemoveFromList_request,
                                     StartList_request,
                                     StopList_request,
+                                    OpenList_reply,
                                     ClearList_request,
                                     RawSetting_struct,
                                     TextSetting_struct,
@@ -341,7 +342,8 @@ you as well as clean-up properly.
         if isinstance(msg, ApplySettings_reply):
             return [ItemStatus(reply.ref_id, reply.status)
                     for reply in msg.status]
-        if isinstance(msg, ListStatus_reply):
+        if isinstance(msg, (ListStatus_reply,
+                            OpenList_reply)):
             return None
         if isinstance(msg, DeviceInfo_reply):
             self.meta[msg.ref_id] = \
