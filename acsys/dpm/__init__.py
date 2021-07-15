@@ -43,9 +43,10 @@ method was used to add the device to the list.
 
     """
 
-    def __init__(self, tag, cycle, stamp, data, micros=None, meta=None):
+    def __init__(self, tag, cycle, stamp, status, data, micros=None, meta=None):
         self._tag = tag
         self._cycle = cycle
+        self._status = status
         self._meta = (meta or {})
         base_time = datetime(1970, 1, 1, tzinfo=timezone.utc)
         if micros is None:
@@ -70,6 +71,10 @@ dictionary -- in the case of basic status or alarm blocks.
 
         """
         return self._data
+
+    @property
+    def status(self):
+        return self._status
 
     @property
     def cycle(self):
@@ -335,15 +340,17 @@ you as well as clean-up properly.
         if isinstance(msg, (AnalogAlarm_reply,
                             DigitalAlarm_reply,
                             BasicStatus_reply)):
-            return ItemData(msg.ref_id, msg.cycle, msg.timestamp, msg.__dict__,
-                            meta=self.meta.get(msg.ref_id, {}))
+            return ItemData(msg.ref_id, msg.cycle, msg.timestamp,
+                            acsys.status.Status(msg.status),
+                            msg.__dict__, meta=self.meta.get(msg.ref_id, {}))
         if isinstance(msg, (Raw_reply,
                             ScalarArray_reply,
                             Scalar_reply,
                             TextArray_reply,
                             Text_reply)):
-            return ItemData(msg.ref_id, msg.cycle, msg.timestamp, msg.data,
-                            meta=self.meta.get(msg.ref_id, {}))
+            return ItemData(msg.ref_id, msg.cycle, msg.timestamp,
+                            acsys.status.Status(msg.status),
+                            msg.data, meta=self.meta.get(msg.ref_id, {}))
         if isinstance(msg, ApplySettings_reply):
             return [ItemStatus(reply.ref_id, reply.status)
                     for reply in msg.status]
@@ -359,8 +366,9 @@ you as well as clean-up properly.
                  else None}
             return None
         if isinstance(msg, TimedScalarArray_reply):
-            return ItemData(msg.ref_id, msg.cycle, msg.timestamp, msg.data,
-                            meta=self.meta.get(msg.ref_id, {}),
+            return ItemData(msg.ref_id, msg.cycle, msg.timestamp,
+                            acsys.status.Status(msg.status),
+                            msg.data, meta=self.meta.get(msg.ref_id, {}),
                             micros=msg.micros)
         return msg
 
