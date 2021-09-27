@@ -294,7 +294,8 @@ you as well as clean-up properly.
     def connection_made(self, transport):
         self.buf = bytearray()
         _log.info('connected to DPM')
-        transport.write(b'GET /dpm HTTP/1.1\r\n\r\n')
+        transport.write(b'GET /dpm HTTP/1.1\r\n')
+        transport.write(b'content-type: application/pc\r\n\r\n')
         asyncio.ensure_future(self._setup_state(transport))
 
     # Called when we lose our connection to DPM.
