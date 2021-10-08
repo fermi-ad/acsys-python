@@ -3,6 +3,7 @@ import importlib
 import logging
 import getpass
 import os
+import ssl
 import sys
 from datetime import (timezone, datetime, timedelta)
 import acsys.status
@@ -374,10 +375,26 @@ you as well as clean-up properly.
         return msg
 
     async def connect(self):
+        assert ssl.HAS_ECDH
+
         loop = asyncio.get_event_loop()
+
+        # Create SSL context. Use defaults and then shut off TLS 1.0
+        # and 1.1.
+
+        ssl_ctx = ssl.create_default_context()
+        ssl_ctx.options |= ssl.OP_NO_TLSv1
+        ssl_ctx.options |= ssl.OP_NO_TLSv1_1
+        ssl_ctx.options |= ssl.OP_NO_SSLv2
+        ssl_ctx.options |= ssl.OP_NO_SSLv3
+
+        # Create the connection to the server and wait for the future
+        # to complete. We give it 2 seconds to connect.
+
         con_fut = loop.create_connection(lambda: self,
                                          host='acsys-proxy.fnal.gov',
-                                         port=self.port)
+                                         port=self.port,
+                                         ssl=ssl_ctx)
         await asyncio.wait_for(con_fut, 2000)
 
         # To reach this spot, two things will have happened: 1) we
@@ -791,15 +808,13 @@ resources are properly released when the block is exited.
 
 Creating a DPM context isn't necessarily a trivial process, so it
 should be done at a higher level - preferrably as the script starts
-up. If a specific DPM node isn't required, the context will do a
-service discovery to choose an available DPM. Future versions of this
-package may move the Kerberos negotiation into this section as well,
-instead of hiding it in `.settings_enable()`, so it will be even more
-expensive.
+up. Future versions of this package may move the Kerberos negotiation
+into this section as well, instead of hiding it in
+`.settings_enable()`, so it will be even more expensive.
 
     """
 
-    def __init__(self, *, port=6805):
+    def __init__(self, *, port=6802):
         self.dpm = DPM(port)
 
     async def __aenter__(self):
