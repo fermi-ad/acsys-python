@@ -12,7 +12,7 @@ log.setLevel(logging.INFO)
 
 async def my_app(con, **kwargs):
     log.info(f"args: {kwargs['a']}, {kwargs['b']}")
-    async with acsys.dpm.DPMContext() as dpm:
+    async with acsys.dpm.DPMContext(port=6808) as dpm:
         await dpm.enable_settings(role='testing')
 
         # Set-up our two devices. The second device uses the $FF event,

@@ -15,20 +15,18 @@ async def my_client(con):
 
     # Setup context
 
-    async with acsys.dpm.DPMContext() as dpm:
+    async with acsys.dpm.DPMContext(port=6808) as dpm:
 
         # Add acquisition requests
 
-        await dpm.add_entry(0, 'M:OUTTMP@p,100H')
-
-        # Start acquisition
-
-        await dpm.start()
+        await dpm.add_entry(0, 'M:OUTTMP@p,1S')
 
         # Process incoming data
 
         async for evt_res in dpm.replies():
+            print(evt_res)
             if evt_res.is_reading_for(0):
+                print(f'cycle: {evt_res.cycle}, status: {evt_res.status}')
                 for (stamp, value) in evt_res.data:
                     print(f'received: {stamp}, {value}')
             else:
