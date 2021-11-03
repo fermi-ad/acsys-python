@@ -12,7 +12,7 @@ class Defaults:
         Additional config items can be passed via a keyword argument to the
         constructor (init).  Example:
 
-        config = Defaults(additional_config={'foo': 'bar'})
+            config = Defaults(additional_config={'foo': 'bar'})
 
         NB: We need to override the "setter" for the environment data field.
             This is because we want to set defaults for all the other data 
