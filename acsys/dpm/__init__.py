@@ -38,10 +38,22 @@ _log = logging.getLogger(__name__)
 class ItemData:
     """An object that holds a reading from a device.
 
-DPM delivers device data using a stream of ItemData objects. The 'tag'
-field corresponds to the tag parameter used when the '.add_entry()'
-method was used to add the device to the list.
+DPM delivers device data using a stream of ItemData objects.
 
+The 'tag' field corresponds to the tag parameter specified when the
+'.add_entry()' method added the device to the list.
+
+'cycle' holds the cycle number. This field can be used to correlate
+readings from different devices.
+
+'status' usually contains a success status. Some devices, however,
+could add a warning status to indicate more information to the
+caller. Some devices may be disabled and would set this status field
+to a value indicating the data is stale, for instance.
+
+'meta' is a dictionary containing device information.
+
+'data' is an array of timestamp/data pairs.
     """
 
     def __init__(self, tag, cycle, stamp, status, data, micros=None, meta=None):
