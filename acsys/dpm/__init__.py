@@ -471,9 +471,9 @@ acquisition is happening, the active requests are searched.
     # Makes a request to DPM.
 
     async def _mk_request(self, _lock, msg, wait=False):
-        xport = await self._get_transport()
         msg = bytes(msg.marshal())
-        xport.write(len(msg).to_bytes(4, byteorder='big') + msg)
+        xport = await self._get_transport()
+        xport.writelines([len(msg).to_bytes(4, byteorder='big'), msg])
         if wait:
             fut = asyncio.get_event_loop().create_future()
             self._qrpy.append(fut)
