@@ -88,7 +88,8 @@ This snippet shows how a request is made to another ACSys task.
 
 EXAMPLE #4: Making simultaneous requests
 
-This snippet looks up the addresses of three ACSys nodes simultaneously.
+This snippet looks up the addresses of three ACSys nodes
+simultaneously.
 
     import asyncio
     import acsys
@@ -298,10 +299,10 @@ class _AcnetdProtocol(asyncio.Protocol):
 
 
 class Connection:
-    """Manages and maintains a connection to the ACSys control system. In
-addition to methods that make requests, this object has methods that
-directly interact with the local ACSys service.
+    """Manages a connection to the ACSys control system.
 
+In addition to methods that make requests, this object has
+methods that directly interact with the local ACSys service.
     """
 
     _char_index = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ$.%0123456789'
@@ -311,10 +312,11 @@ directly interact with the local ACSys service.
     def __init__(self):
         """Constructor.
 
-Creates a disconnected instance of a Connection object. This instance
-can't be properly used until further steps are completed.  SCRIPTS
-SHOULDN'T CREATE CONNECTIONS; they should receive a properly created
-one indirectly through `acsys.run_client()`.
+Creates a disconnected instance of a Connection object. This
+instance can't be properly used until further steps are
+completed. SCRIPTS SHOULDN'T CREATE CONNECTIONS; they should
+receive a properly created one indirectly through
+`acsys.run_client()`.
 
         """
         self._raw_handle = 0
@@ -445,8 +447,8 @@ one indirectly through `acsys.run_client()`.
     async def get_name(self, addr):
         """Look-up node name.
 
-Returns the ACSys node name associated with the ACSys node address,
-`addr`.
+Returns the ACSys node name associated with the ACSys node
+address, `addr`.
 
         """
         if isinstance(addr, int) and 0 <= addr <= 0x10000:
@@ -467,8 +469,8 @@ Returns the ACSys node name associated with the ACSys node address,
     async def get_addr(self, name):
         """Look-up node address.
 
-Returns the ACSys trunk/node node address associated with the ACSys
-node name, `name`.
+Returns the ACSys trunk/node node address associated with
+the ACSys node name, `name`.
 
         """
         if isinstance(name, str) and len(name) <= 6:
@@ -490,9 +492,10 @@ node name, `name`.
     async def get_local_node(self):
         """Return the node name associated with this connection.
 
-Python scripts and web applications gain access to the control system
-through a pool of ACNET nodes. This method returns which node of the
-pool is being used for the connection.
+Python scripts and web applications gain access to the
+control system through a pool of ACNET nodes. This method
+returns which node of the pool is being used for the
+connection.
 
         """
         buf = struct.pack('>I2H2I', 12, 1, 13, self._raw_handle, 0)
@@ -526,16 +529,17 @@ pool is being used for the connection.
     async def make_canonical_taskname(self, taskname):
         """Return an efficient form of taskname.
 
-This library uses the 'HANDLE@NODE' format to refer to remote tasks.
-The internals of ACNET actually use trunk/node addresses and an
-integer form of the handle name when routing messages. This means the
-convenient form requires a look-up call to the ACNET service to get
-the underlying address of the node.
+This library uses the 'HANDLE@NODE' format to refer to
+remote tasks. The internals of ACNET actually use trunk/node
+addresses and an integer form of the handle name when
+routing messages. This means the convenient form requires a
+look-up call to the ACNET service to get the underlying
+address of the node.
 
-If few requests are made, this overhead is negligible. If frequent
-requests are made to the same task, however, the overhead can be
-avoided by converting the convenient format into this efficient
-format.
+If few requests are made, this overhead is negligible. If
+frequent requests are made to the same task, however, the
+overhead can be avoided by converting the convenient format
+into this efficient format.
 
         """
 
@@ -605,32 +609,34 @@ format.
         proto=None,
         timeout=1000
     ):
-        """Request a single reply from an ACSys task.
+        """Requests a single reply from an ACSys task.
 
-This function sends a request to an ACSys task and returns a future
-which will be resolved with the reply. The reply is a 2-tuple where
-the first element is the trunk/node address of the sender and the
-second is the reply data.
+This function sends a request to an ACSys task and returns a
+future which will be resolved with the reply. The reply is a
+2-tuple where the first element is the trunk/node address of
+the sender and the second is the reply data.
 
-The ACSys status will always be good (i.e. success or warning);
-receiving a fatal status results in the future throwing an exception.
+The ACSys status will always be good (i.e. success or
+warning); receiving a fatal status results in the future
+throwing an exception.
 
-'remtsk' is a string representing the remote ACSys task in the format
-"TASKNAME@NODENAME".
+'remtsk' is a string representing the remote ACSys task in
+the format "TASKNAME@NODENAME".
 
-'message' is either a bytes type, or a type that's an acceptable value
-for a protocol (specified by the 'proto' parameter.)
+'message' is either a bytes type, or a type that's an
+acceptable value for a protocol (specified by the 'proto'
+parameter.)
 
-'proto' is an optional, named parameter. If omitted, the message must
-be a bytes type. If specified, it should be the name of a module
-generated by the Protocol Compiler.
+'proto' is an optional, named parameter. If omitted, the
+message must be a bytes type. If specified, it should be the
+name of a module generated by the Protocol Compiler.
 
-'timeout' is an optional field which sets the timeout for the
-request. If the reply doesn't arrive in time, an ACNET_UTIME status
-will be raised.
+'timeout' is an optional field which sets the timeout for
+the request. If the reply doesn't arrive in time, an
+ACNET_UTIME status will be raised.
 
-If the message is in an incorrect format or the timeout parameter
-isn't an integer, ValueError is raised.
+If the message is in an incorrect format or the timeout
+parameter isn't an integer, ValueError is raised.
 
         """
         def process_reply(reply):
@@ -686,33 +692,34 @@ isn't an integer, ValueError is raised.
         proto=None,
         timeout=1000
     ):
-        """Request a stream of replies from an ACSys task.
+        """Requests a stream of replies from an ACSys task.
 
-This function sends a request to an ACSys task and returns an async
-generator which returns the stream of replies. Each reply is a 2-tuple
-where the first element is the trunk/node address of the sender and
-the second is the reply data.
+This function sends a request to an ACSys task and returns
+an async generator which returns the stream of replies. Each
+reply is a 2-tuple where the first element is the trunk/node
+address of the sender and the second is the reply data.
 
-The ACSys status in each reply will always be good (i.e. success or
-warning); receiving a fatal status results in the generator throwing
-an exception.
+The ACSys status in each reply will always be good (i.e.
+success or warning); receiving a fatal status results in the
+generator throwing an exception.
 
-'remtsk' is a string representing the remote ACSys task in the format
-"TASKNAME@NODENAME".
+'remtsk' is a string representing the remote ACSys task in
+the format "TASKNAME@NODENAME".
 
-'message' is either a bytes type, or a type that's an acceptable value
-for a protocol (specified by the 'proto' parameter.)
+'message' is either a bytes type, or a type that's an
+acceptable value for a protocol (specified by the 'proto'
+parameter.)
 
-'proto' is an optional, named parameter. If omitted, the message must
-be a bytes type. If specified, it should be the name of a module
-generated by the Protocol Compiler.
+'proto' is an optional, named parameter. If omitted, the
+message must be a bytes type. If specified, it should be the
+name of a module generated by the Protocol Compiler.
 
-'timeout' is an optional field which sets the timeout between each
-reply.  If any reply doesn't arrive in time, an ACNET_UTIME status
-will be raised.
+'timeout' is an optional field which sets the timeout
+between each reply.  If any reply doesn't arrive in time, an
+ACNET_UTIME status will be raised.
 
-If the message is in an incorrect format or the timeout parameter
-isn't an integer, ValueError is raised.
+If the message is in an incorrect format or the timeout
+parameter isn't an integer, ValueError is raised.
 
         """
         try:
@@ -760,10 +767,11 @@ isn't an integer, ValueError is raised.
     async def ping(self, node):
         """Pings an ACSys node.
 
-Uses the Level2 protocol to perform an ACSys ping request. Returns
-True if the node responded or False if it didn't. A node is given 1/4
-second to respond. If the Connection has problems, this method will
-raise an ACSys Status code.
+Uses the Level2 protocol to perform an ACSys ping request.
+Returns True if the node responded or False if it didn't. A
+node is given 1/4 second to respond. If the Connection has
+problems, this method will raise an ACSys Status code.
+
         """
         node = await self._to_nodename(node)
         try:
@@ -800,16 +808,16 @@ async def __client_main(main, **kwargs):
 def run_client(main, **kwargs):
     """Starts an asynchronous session for ACSys clients.
 
-This function starts up an ACSys session. The parameter , `main`, is
-an async function with the signature:
+This function starts up an ACSys session. The parameter,
+`main`, is an async function with the signature:
 
     async def main(con, **kwargs):
 
-This function will be passed `con` -- a fully initialized `Connection`
-object. It will also get passed `kwargs`.
+This function will be passed `con` -- a fully initialized
+`Connection` object. It will also get passed `kwargs`.
 
-When 'main()' resolves, `run_client()` will return the value returned
-by `main()`.
+When 'main()' resolves, `run_client()` will return the value
+returned by `main()`.
 
     """
     loop = asyncio.get_event_loop()
