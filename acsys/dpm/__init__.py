@@ -40,20 +40,22 @@ class ItemData:
 
 DPM delivers device data using a stream of ItemData objects.
 
-The 'tag' field corresponds to the tag parameter specified when the
-'.add_entry()' method added the device to the list.
+The 'tag' field corresponds to the tag parameter specified when
+the '.add_entry()' method added the device to the list.
 
-'cycle' holds the cycle number. This field can be used to correlate
-readings from different devices.
+'cycle' holds the cycle number. This field can be used to
+correlate readings from different devices.
 
-'status' usually contains a success status. Some devices, however,
-could add a warning status to indicate more information to the
-caller. Some devices may be disabled and would set this status field
-to a value indicating the data is stale, for instance.
+'status' usually contains a success status. Some devices,
+however, could add a warning status to indicate more information
+to the caller. Some devices may be disabled and would set this
+status field to a value indicating the data is stale, for
+instance.
 
 'meta' is a dictionary containing device information.
 
 'data' is an array of timestamp/data pairs.
+
     """
 
     def __init__(self, tag, cycle, stamp, status, data, micros=None, meta=None):
@@ -69,18 +71,20 @@ to a value indicating the data is stale, for instance.
 
     @property
     def tag(self):
-        """Corresponds to the ref ID that was associated with the DRF request
-string."""
+        """Corresponds to the ref ID that was associated with the DRF
+request string.
+        """
         return self._tag
 
     @property
     def data(self):
         """An array of timestamp/value pairs. The value will be of the type
 asked in the corresponding DRF2 (specified in the call to the
-'.add_entry()' method.) For instance, if .RAW was specified, the value
-field will contain a bytes(). Otherwise it will contain a scaled,
-floating point value (or an array, if it's an array device), or a
-dictionary -- in the case of basic status or alarm blocks.
+'.add_entry()' method.) For instance, if .RAW was specified, the
+value field will contain a bytes(). Otherwise it will contain a
+scaled, floating point value (or an array, if it's an array
+device), or a dictionary -- in the case of basic status or alarm
+blocks.
 
         """
         return self._data
@@ -104,9 +108,9 @@ dictionary -- in the case of basic status or alarm blocks.
     @property
     def meta(self):
         """Contains a dictionary of extra information about the device. The
-'name' key holds the device name. 'di' contains the device index. If
-the device has scaling, a 'units' key will be present and hold the
-engineering units of the reading.
+'name' key holds the device name. 'di' contains the device index.
+If the device has scaling, a 'units' key will be present and hold
+the engineering units of the reading.
 
         """
         return self._meta
@@ -117,7 +121,6 @@ engineering units of the reading.
     def is_reading_for(self, *tags):
         """Returns True if this ItemData instance is associated with any of
 the tag values in the parameter list.
-
         """
         return self.tag in tags
 
@@ -129,17 +132,17 @@ the tag values in the parameter list.
 class ItemStatus:
     """An object reporting status of an item in a DPM list.
 
-If there was an error in a request, this object will be in the stream
-instead of a ItemData object. The 'tag' field corresponds to the tag
-parameter used in the call to the '.add_entry()' method.
+If there was an error in a request, this object will be in the
+stream instead of a ItemData object. The 'tag' field corresponds
+to the tag parameter used in the call to the '.add_entry()'
+method.
 
-If this message appears as a result of a reading request, there will
-never be an ItemData object for the 'tag' until the error condition is
-fixed and the list restarted.
+If this message appears as a result of a reading request, there
+will never be an ItemData object for the 'tag' until the error
+condition is fixed and the list restarted.
 
-There will always be one of these objects generated to indicate the
-result of a setting.
-
+There will always be one of these objects generated to indicate
+the result of a setting.
     """
 
     def __init__(self, tag, status):
@@ -148,8 +151,9 @@ result of a setting.
 
     @property
     def tag(self):
-        """Corresponds to the ref ID that was associated with the DRF request
-string."""
+        """Corresponds to the ref ID that was associated with the DRF
+request string.
+        """
         return self._tag
 
     @property
@@ -165,8 +169,8 @@ string."""
         return False
 
     def is_status_for(self, *tags):
-        """Returns True if this ItemStatus instance is associated with any of
-the tag values in the parameter list.
+        """Returns True if this ItemStatus instance is associated with any
+of the tag values in the parameter list.
 
         """
         return self.tag in tags
@@ -174,14 +178,15 @@ the tag values in the parameter list.
 
 class DPM(asyncio.Protocol):
     """An object that manages a connection to a remote Data Pool Manager
-(DPM). Instances of this class should be obtained by a 'DPMContext'
-object used in an 'async-with' statement.
+(DPM). Instances of this class should be obtained by a
+'DPMContext' object used in an 'async-with' statement.
 
-Creating an instance results in a dormant object. To activate it, it
-needs to be passed as the 'protocol' argument to 'asyncio.create_connection()'.
+Creating an instance results in a dormant object. To activate it,
+it needs to be passed as the 'protocol' argument to
+'asyncio.create_connection()'.
 
-'DPMContext's in an `async-statement' perform this initialization for
-you as well as clean-up properly.
+'DPMContext's in an `async-statement' perform this initialization
+for you as well as clean-up properly.
 
     """
 
@@ -421,9 +426,11 @@ you as well as clean-up properly.
         await self._transport
 
     async def replies(self, tmo=None, model=None):
-        """Returns an async generator which yields each reply from DPM. The
-optional `tmo` parameter indicates how long to wait between replies
-before an `asyncio.TimeoutError` is raised.
+        """Returns a generator of replies.
+
+Returns an async generator which yields each reply from DPM. The
+optional `tmo` parameter indicates how long to wait between
+replies before an `asyncio.TimeoutError` is raised.
 
         """
         should_stop = False
@@ -455,12 +462,13 @@ before an `asyncio.TimeoutError` is raised.
         """Returns the DRF string associated with the 'tag'.
 
 The DPM object keeps track of two sets of DRF requests; one set
-represents requests which become active after a call to 'DPM.start()'.
-The other set is defined when data acquisition is active.
+represents requests which become active after a call to
+'DPM.start()'. The other set is defined when data acquisition is
+active.
 
 If the 'active' parameter is False or data acquisition isn't
-happening, the staged requests are searched. If 'active' is True and
-acquisition is happening, the active requests are searched.
+happening, the staged requests are searched. If 'active' is True
+and acquisition is happening, the active requests are searched.
 
         """
         async with self._state_sem:
@@ -483,9 +491,9 @@ acquisition is happening, the active requests are searched.
     async def clear_list(self):
         """Clears all entries in the tag/drf dictionary.
 
-Clearing the list doesn't stop incoming data acquisition, it clears
-the list to be sent with the next call to 'dpm.start()'. To stop data
-acquisition, call 'dpm.stop()'.
+Clearing the list doesn't stop incoming data acquisition, it
+clears the list to be sent with the next call to 'dpm.start()'.
+To stop data acquisition, call 'dpm.stop()'.
 
         """
         msg = ClearList_request()
@@ -520,23 +528,24 @@ acquisition, call 'dpm.stop()'.
     async def add_entry(self, tag, drf):
         """Add an entry to the list of devices to be acquired.
 
-This updates the list of device requests. The 'tag' parameter is used
-to mark this request's device data. When the script starts receiving
-ItemData objects, it can correlate the data using the 'tag' field. The
-'tag' must be an integer -- the method will raise a ValueError if it's
-not.
+This updates the list of device requests. The 'tag' parameter is
+used to mark this request's device data. When the script starts
+receiving ItemData objects, it can correlate the data using the
+'tag' field. The 'tag' must be an integer -- the method will
+raise a ValueError if it's not.
 
-The 'drf' parameter is a DRF2 string representing the data to be read
-along with the sampling event. If it isn't a string, ValueError will
-be raised.
+The 'drf' parameter is a DRF2 string representing the data to be
+read along with the sampling event. If it isn't a string,
+ValueError will be raised.
 
 If this method is called with a tag that was previously used, it
-replaces the previous request. If data is currently being returned, it
-won't reflect the new entry until the 'start' method is called.
+replaces the previous request. If data is currently being
+returned, it won't reflect the new entry until the 'start' method
+is called.
 
-If simultaneous calls are made to this method and all are using the
-same 'tag', which 'drf' string is ultimately associated with the tag
-is non-deterministic.
+If simultaneous calls are made to this method and all are using
+the same 'tag', which 'drf' string is ultimately associated with
+the tag is non-deterministic.
 
         """
 
@@ -556,8 +565,9 @@ is non-deterministic.
     async def add_entries(self, entries):
         """Adds multiple entries.
 
-This is a convenience function to add a list of tag/drf pairs to DPM's
-request list.
+This is a convenience function to add a list of tag/drf pairs to
+DPM's request list.
+
         """
 
         # Validate the array of parameters.
@@ -575,12 +585,13 @@ request list.
     async def remove_entry(self, tag):
         """Removes an entry from the list of devices to be acquired.
 
-This updates the list of device requests. The 'tag' parameter is used
-to specify which request should be removed from the list.  The 'tag'
-must be an integer -- the method will raise a ValueError if it's not.
+This updates the list of device requests. The 'tag' parameter is
+used to specify which request should be removed from the list.
+The 'tag' must be an integer -- the method will raise a
+`ValueError` if it's not.
 
-Data associated with the 'tag' will continue to be returned until the
-'.start()' method is called.
+Data associated with the 'tag' will continue to be returned until
+the '.start()' method is called.
 
         """
 
@@ -609,10 +620,10 @@ Data associated with the 'tag' will continue to be returned until the
     async def start(self, model=None):
         """Start/restart data acquisition using the current request list.
 
-Calls to '.add_entry()' and '.remove_entry()' make changes to the list
-of requests but don't actually affect data acquisition until this
-method is called. This allows a script to make major adjustments and
-then enable the changes all at once.
+Calls to '.add_entry()' and '.remove_entry()' make changes to the
+list of requests but don't actually affect data acquisition until
+this method is called. This allows a script to make major
+adjustments and then enable the changes all at once.
 
         """
         _log.debug('starting DPM list')
@@ -632,8 +643,8 @@ then enable the changes all at once.
     async def stop(self):
         """Stops data acquisition.
 
-This method stops data acquisition. The list of requests is unaffected
-so a call to '.start()' will restart the list.
+This method stops data acquisition. The list of requests is
+unaffected so a call to '.start()' will restart the list.
 
 Due to the asynchronous nature of network communications, after
 calling this method, a few readings may still get delivered.
@@ -684,16 +695,16 @@ calling this method, a few readings may still get delivered.
     async def enable_settings(self, role=None):
         """Enable settings for the current DPM session.
 
-This method exchanges credentials with the DPM. If successful, the
-session is allowed to make settings. The script must be running in an
-environment with a valid Kerberos ticket. The ticket must part of the
-FNAL.GOV realm and can't be expired.
+This method exchanges credentials with the DPM. If successful,
+the session is allowed to make settings. The script must be
+running in an environment with a valid Kerberos ticket. The
+ticket must part of the FNAL.GOV realm and can't be expired.
 
 The credentials are valid as long as this session is maintained.
 
 The `role` parameter indicates in what role your script will be
-running. Your Kerberos principal should be authorized to operate in
-the role.
+running. Your Kerberos principal should be authorized to operate
+in the role.
 
         """
 
@@ -810,7 +821,9 @@ the role.
 
 
 class DPMContext:
-    """Creates a communication context with one DPM (of a pool of DPMs.)
+    """Defines a scope for communicating with DPM..
+
+Creates a communication context with one DPM (of a pool of DPMs.)
 This context must be used in an `async-with-statement` so that
 resources are properly released when the block is exited.
 
@@ -819,9 +832,9 @@ resources are properly released when the block is exited.
         # in this block.
 
 Creating a DPM context isn't necessarily a trivial process, so it
-should be done at a higher level - preferrably as the script starts
-up. Future versions of this package may move the Kerberos negotiation
-into this section as well, instead of hiding it in
+should be done at a higher level - preferrably as the script
+starts up. Future versions of this package may move the Kerberos
+negotiation into this section as well, instead of hiding it in
 `.settings_enable()`, so it will be even more expensive.
 
     """
