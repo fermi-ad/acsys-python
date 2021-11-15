@@ -640,9 +640,11 @@ calling this method, a few readings may still get delivered.
                                                       timeout=self.req_tmo,
                                                       proto=acsys.dpm.dpm_protocol)
 
-            if not isinstance(msg, Authenticate_reply):
-                raise TypeError(f'unexpected protocol message: %{msg}')
-            return msg
+            if isinstance(msg, Authenticate_reply):
+                return msg
+            if isinstance(msg, Status_reply):
+                raise acsys.status.Status(msg.status)
+            raise TypeError(f'unexpected protocol message: %{msg}')
 
     async def enable_settings(self, role=None):
         """Enable settings for the current DPM session.
