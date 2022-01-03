@@ -769,9 +769,11 @@ async def _create_socket():
 async def __client_main(main, **kwargs):
     con = await Connection.create()
     try:
-        await main(con, **kwargs)
+        result = (await main(con, **kwargs))
     finally:
         del con
+
+    return result
 
 def run_client(main, **kwargs):
     """Starts an asynchronous session for ACSys clients.
@@ -791,11 +793,11 @@ by `main()`.
     loop = asyncio.get_event_loop()
     client_fut = asyncio.Task(__client_main(main, **kwargs))
     try:
-        loop.run_until_complete(client_fut)
+        return loop.run_until_complete(client_fut)
     except:
         client_fut.cancel()
         try:
-            loop.run_until_complete(client_fut)
+            return loop.run_until_complete(client_fut)
         except:
             pass
         raise
