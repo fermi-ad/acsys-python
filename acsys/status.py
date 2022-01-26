@@ -5,7 +5,7 @@ class Status(Exception):
 
     class Codes(IntEnum):
         """ACNET common status codes"""
-        # ACNET_SUCCESS = 1 + 256 * 0
+        #ACNET_SUCCESS = 1 + 256 * 0
         # TODO is this zero or 0x01?
         ACNET_SUCCESS = 0
         ACNET_PEND = 1 + 256 * 1

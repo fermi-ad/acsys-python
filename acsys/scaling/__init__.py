@@ -18,12 +18,10 @@ async def find_service(con, node=None):
         node = await con.get_name(replier)
         _log.debug('found SCALE service at node %s', node)
         return node
-    except acsys.status.AcnetRequestTimeOutQueuedAtDestination:
-        raise acsys.status.AcnetNoSuchRequestOrReply()
+    except acsys.status.AcnetRequestTimeOutQueuedAtDestination as exception:
+        raise acsys.status.AcnetNoSuchRequestOrReply() from exception
     except acsys.status.AcnetUserGeneratedNetworkTimeout:
         return None
-    except acsys.status.Status:
-        raise
 
 
 async def convert_data(con, drf, data, node=None):

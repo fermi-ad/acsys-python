@@ -76,8 +76,6 @@ async def find_service(con, clock=Clock_Tclk, node=None):
         return await con.get_name(replier)
     except acsys.status.AcnetUserGeneratedNetworkTimeout:
         return None
-    except acsys.status.Status:
-        raise
 
 
 async def get_available(con, clock=Clock_Tclk):

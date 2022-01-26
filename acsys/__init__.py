@@ -148,7 +148,7 @@ _ackMap = {
 
 
 def _throw_bug(_):
-    raise status.AcnetRequestTimeOutQueuedAtDestination
+    raise status.AcnetRequestTimeOutQueuedAtDestination()
 
 
 def _decode_ack(buf):
@@ -378,8 +378,6 @@ receive a properly created one indirectly through
                 except status.AcnetReplyTaskDisconnected:
                     if self.protocol is not None:
                         self.protocol = None
-                    raise
-                except status.Status as sts:
                     raise
         else:
             raise AcnetReplyTaskDisconnected()
@@ -778,10 +776,8 @@ problems, this method will raise an ACSys Status code.
         try:
             await self.request_reply(f'ACNET@{node}', b'\x00\x00', timeout=250)
             return True
-        except status.AcnetRequestTimeOutQueuedAtDestination as exception:
+        except status.AcnetRequestTimeOutQueuedAtDestination:
             return False
-        except status.Status as exception:
-            raise exception
 
 
 async def _create_socket():
