@@ -18,13 +18,12 @@ async def find_service(con, node=None):
         node = await con.get_name(replier)
         _log.debug('found SCALE service at node %s', node)
         return node
-    except acsys.status.Status as exception:
-        if exception == acsys.status.ACNET_REQTMO:
-            raise acsys.status.ACNET_NO_SUCH
-        if exception != acsys.status.ACNET_UTIME:
-            raise
-
+    except acsys.status.AcnetRequestTimeOutQueuedAtDestination:
+        raise acsys.status.AcnetNoSuchRequestOrReply()
+    except acsys.status.AcnetUserGeneratedNetworkTimeout:
         return None
+    except acsys.status.Status:
+        raise
 
 
 async def convert_data(con, drf, data, node=None):
@@ -73,12 +72,12 @@ in `acsys.status.ACNET_UTIME` being raised.
     if node is None:
         node = await find_service(con)
         if node is None:
-            raise acsys.status.ACNET_NO_NODE
+            raise acsys.status.AcnetNoSuchLogicalNode()
 
     _, reply = await con.request_reply(f'SCALE@{node}', msg, timeout=1000,
                                        proto=acsys.scaling.scaling_protocol)
 
-    status = acsys.status.Status(reply.status)
+    status = acsys.status.Status.create(reply.status)
 
     if status.is_success:
         if hasattr(reply, 'raw'):
