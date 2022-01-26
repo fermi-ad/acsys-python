@@ -1,13 +1,11 @@
 from enum import IntEnum
 
-class Status(Exception):
+class Status:
     """An ACSys status type."""
 
     class Codes(IntEnum):
         """ACNET common status codes"""
-        #ACNET_SUCCESS = 1 + 256 * 0
-        # TODO is this zero or 0x01?
-        ACNET_SUCCESS = 0
+        ACNET_SUCCESS = 1 + 256 * 0
         ACNET_PEND = 1 + 256 * 1
         ACNET_ENDMULT = 1 + 256 * 2
         ACNET_RETRY = 1 + 256 * -1
@@ -49,8 +47,8 @@ class Status(Exception):
         """Creates a status value which is initialized with the supplied
         value. The value must be in the range of signed, 16-bit
         integers.
+        Do not use this method directly, use Status.create(val) instead.
         """
-        super().__init__()
         if -0x8000 < val <= 0x7fff:
             self.value = val
         else:
@@ -94,11 +92,19 @@ class Status(Exception):
 
     @staticmethod
     def create(val):
-        # Clases that specialize Status - based on code, that can be captured as exceptions
-        if val == Status.Codes.ACNET_SUCCESS or \
+        """
+        Factory method to build ACNET Status codes. If given an error
+        code, it will build a raisable (AcnetException) object.
+        """
+        # In case zero is given as a value / zero facility code
+        if val == 0:
+            return Status(Status.Codes.ACNET_SUCCESS)
+        # Non-error codes
+        elif val == Status.Codes.ACNET_SUCCESS or \
                 val == Status.Codes.ACNET_PEND or \
                 val == Status.Codes.ACNET_ENDMULT:
             return Status(val)
+        # Error codes build an exception
         elif val == Status.Codes.ACNET_RETRY:
             return AcnetRetryIOError()
         elif val == Status.Codes.ACNET_NOLCLMEM:
@@ -172,142 +178,144 @@ class Status(Exception):
 
 
 # Clases that specialize Status - based on code, that can be captured on different except clauses
+class AcnetException(Status, Exception):
+    pass
 
-class AcnetRetryIOError(Status):
+class AcnetRetryIOError(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_RETRY)
+        Status.__init__(self, Status.Codes.ACNET_RETRY)
 
-class AcnetNoLocalMemory(Status):
+class AcnetNoLocalMemory(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_NOLCLMEM)
+        Status.__init__(self, Status.Codes.ACNET_NOLCLMEM)
 
-class AcnetNoRemoteMemory(Status):
+class AcnetNoRemoteMemory(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_NOREMMEM)
+        Status.__init__(self, Status.Codes.ACNET_NOREMMEM)
 
-class AcnetReplyMessagePacketAssemblyError(Status):
+class AcnetReplyMessagePacketAssemblyError(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_RPLYPACK)
+        Status.__init__(self, Status.Codes.ACNET_RPLYPACK)
 
-class AcnetRequestMessagePacketAssemblyError(Status):
+class AcnetRequestMessagePacketAssemblyError(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_REQPACK)
+        Status.__init__(self, Status.Codes.ACNET_REQPACK)
 
-class AcnetRequestTimeOutQueuedAtDestination(Status):
+class AcnetRequestTimeOutQueuedAtDestination(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_REQTMO)
+        Status.__init__(self, Status.Codes.ACNET_REQTMO)
 
-class AcnetDestinationQueueFull(Status):
+class AcnetDestinationQueueFull(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_QUEFULL)
+        Status.__init__(self, Status.Codes.ACNET_QUEFULL)
 
-class AcnetDestinationBusy(Status):
+class AcnetDestinationBusy(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_BUSY)
+        Status.__init__(self, Status.Codes.ACNET_BUSY)
 
-class AcnetNotConnected(Status):
+class AcnetNotConnected(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_NOT_CONNECTED)
+        Status.__init__(self, Status.Codes.ACNET_NOT_CONNECTED)
 
-class AcnetMissingArguments(Status):
+class AcnetMissingArguments(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_ARG)
+        Status.__init__(self, Status.Codes.ACNET_ARG)
 
-class AcnetInvalidMessageLengthOrBufferAddress(Status):
+class AcnetInvalidMessageLengthOrBufferAddress(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_IVM)
+        Status.__init__(self, Status.Codes.ACNET_IVM)
 
-class AcnetNoSuchRequestOrReply(Status):
+class AcnetNoSuchRequestOrReply(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_NO_SUCH)
+        Status.__init__(self, Status.Codes.ACNET_NO_SUCH)
 
-class RequestToDestinationTaskRejected(Status):
+class RequestToDestinationTaskRejected(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_REQREJ)
+        Status.__init__(self, Status.Codes.ACNET_REQREJ)
 
-class RequestedCancelled(Status):
+class RequestedCancelled(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_CANCELLED)
+        Status.__init__(self, Status.Codes.ACNET_CANCELLED)
 
-class AcnetNameAlreadyInUse(Status):
+class AcnetNameAlreadyInUse(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_NAME_IN_USE)
+        Status.__init__(self, Status.Codes.ACNET_NAME_IN_USE)
 
-class AcnetNotConnectedAsRumTask(Status):
+class AcnetNotConnectedAsRumTask(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_NCR)
+        Status.__init__(self, Status.Codes.ACNET_NCR)
 
-class AcnetNoSuchLogicalNode(Status):
+class AcnetNoSuchLogicalNode(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_NO_NODE)
+        Status.__init__(self, Status.Codes.ACNET_NO_NODE)
 
-class AcnetTruncatedRequest(Status):
+class AcnetTruncatedRequest(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_TRUNC_REQUEST)
+        Status.__init__(self, Status.Codes.ACNET_TRUNC_REQUEST)
 
-class AcnetTruncatedReply(Status):
+class AcnetTruncatedReply(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_TRUNC_REPLY)
+        Status.__init__(self, Status.Codes.ACNET_TRUNC_REPLY)
 
-class AcnetNoSuchDestinationTask(Status):
+class AcnetNoSuchDestinationTask(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_NO_TASK)
+        Status.__init__(self, Status.Codes.ACNET_NO_TASK)
 
-class AcnetReplyTaskDisconnected(Status):
+class AcnetReplyTaskDisconnected(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_DISCONNECTED)
+        Status.__init__(self, Status.Codes.ACNET_DISCONNECTED)
 
-class AcnetLevel2FunctionError(Status):
+class AcnetLevel2FunctionError(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_LEVEL2)
+        Status.__init__(self, Status.Codes.ACNET_LEVEL2)
 
-class AcnetHardIOError(Status):
+class AcnetHardIOError(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_HARD_IO)
+        Status.__init__(self, Status.Codes.ACNET_HARD_IO)
 
-class AcnetLogicalNodeDownOffline(Status):
+class AcnetLogicalNodeDownOffline(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_NODE_DOWN)
+        Status.__init__(self, Status.Codes.ACNET_NODE_DOWN)
 
-class AcnetSystemServiceError(Status):
+class AcnetSystemServiceError(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_SYS)
+        Status.__init__(self, Status.Codes.ACNET_SYS)
 
-class AcnetUntranslatableError(Status):
+class AcnetUntranslatableError(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_NXE)
+        Status.__init__(self, Status.Codes.ACNET_NXE)
 
-class AcnetNetworkInternalError(Status):
+class AcnetNetworkInternalError(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_BUG)
+        Status.__init__(self, Status.Codes.ACNET_BUG)
 
-class AcnetNE1_VMSExceededQuota(Status):
+class AcnetNE1_VMSExceededQuota(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_NE1)
+        Status.__init__(self, Status.Codes.ACNET_NE1)
 
-class AcnetNE2_VMSNoAdressForRequestOrReply(Status):
+class AcnetNE2_VMSNoAdressForRequestOrReply(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_NE2)
+        Status.__init__(self, Status.Codes.ACNET_NE2)
 
-class AcnetNE3_VMSBufferInUse(Status):
+class AcnetNE3_VMSBufferInUse(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_NE3)
+        Status.__init__(self, Status.Codes.ACNET_NE3)
 
-class AcnetUserGeneratedNetworkTimeout(Status):
+class AcnetUserGeneratedNetworkTimeout(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_UTIME)
+        Status.__init__(self, Status.Codes.ACNET_UTIME)
 
-class AcnetInvalidArgumentPassed(Status):
+class AcnetInvalidArgumentPassed(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_INVARG)
+        Status.__init__(self, Status.Codes.ACNET_INVARG)
 
-class AcnetMemoryAllocationFailed(Status):
+class AcnetMemoryAllocationFailed(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_MEMFAIL)
+        Status.__init__(self, Status.Codes.ACNET_MEMFAIL)
 
-class AcnetNoRequestHandle(Status):
+class AcnetNoRequestHandle(AcnetException):
     def __init__(self):
-        super().__init__(Status.Codes.ACNET_NO_HANDLE)
+        Status.__init__(self, Status.Codes.ACNET_NO_HANDLE)
 
 
 # Objects that represent an instance of each status, so they can be compared

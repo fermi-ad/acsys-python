@@ -1,17 +1,17 @@
 from acsys.status import *
 
-st = AcnetRetryIOError()
-print(f"{st!r}")
 
 try:
     print("Raising error")
-    raise st
+    raise AcnetRetryIOError()
 except AcnetReplyTaskDisconnected as ex:
-    print(f"Captured exception: {ex!r}")
-except Status as st2:
-    print(f"Captured any status: {st2!r}")
+    print(f"Captured specific exception: {ex!r}")
+except AcnetException as ex:
+    print(f"Captured general exception: {ex!r}")
 
 try:
     raise Status.create(1+256*-6)
 except AcnetRequestTimeOutQueuedAtDestination as ex:
-    print(f"Captured exception: {ex!r}")
+    print(f"Captured specific exception: {ex!r}")
+except AcnetException as ex:
+    print(f"Captured general exception: {ex!r}")

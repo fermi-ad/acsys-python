@@ -95,8 +95,6 @@ no nodes are found, an empty list is returned.
             result.append(await con.get_name(replier))
     except acsys.status.AcnetUserGeneratedNetworkTimeout:
         return result
-    except acsys.status.Status as exception:
-        raise
     
 
 
@@ -152,6 +150,6 @@ occur.
                         yield ClockEvent(stamp, event.clock.event, event.clock.number)
         except acsys.status.AcnetReplyTaskDisconnected:
             raise
-        except acsys.status.Status as exception:
-            _log.warning('lost connection with SYNC service')
+        except acsys.status.AcnetException as exception:
+            _log.warning(f'lost connection with SYNC service: {exception!r}')
             await asyncio.sleep(0.5)
