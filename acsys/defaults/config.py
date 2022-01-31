@@ -2,21 +2,22 @@ from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import InitVar
 
+
 @dataclass
 class Defaults:
-    """ Defaults is an class that when instantiated, contains defaults for 
+    """ Defaults is n class that when instantiated, contains defaults for
         external parameters such as the hostname for the public proxy to
         connect to.  Parameters can be accessed and modified as properties
         of the class.
-    
+
         Additional config items can be passed via a keyword argument to the
         constructor (init).  Example:
 
             config = Defaults(additional_config={'foo': 'bar'})
 
         NB: We need to override the "setter" for the environment data field.
-            This is because we want to set defaults for all the other data 
-            fields when the environment changes.  There is no easy way to 
+            This is because we want to set defaults for all the other data
+            fields when the environment changes.  There is no easy way to
             override a Dataclass "setter".  We need to define a property, but
             that isn't an intuititive process.  See:
 
@@ -33,9 +34,8 @@ class Defaults:
     default_environment: InitVar[str] = "production"
 
     """ An enumeration of default configuration items.
-    
-       The top level key is the environment.  Switching environments will 
-       overwrite all config values with the defaults for the selected 
+       The top level key is the environment.  Switching environments will
+       overwrite all config values with the defaults for the selected
        environment.  Items are exposed as properties and can be individually
        overridden using the property syntax.
 
@@ -65,7 +65,7 @@ class Defaults:
         }
     }
 
-    """ A list of supported output types to return the contents of the current 
+    """ A list of supported output types to return the contents of the current
         configuration state
     """
     dump_formats = ['json']
@@ -86,22 +86,19 @@ class Defaults:
 
     def dump(self, format="json"):
         """ Outputs the current state of the configuration in the format specified
- 
         The default format is JSON.  The method will check for valid format types.
         NB: Currently the ONLY supported output format is JSON
         """
         output = ""
         output_format = format.lower()
-        
-        if not output_format in Defaults.dump_formats: 
-            raise ValueError("Argument value for format, '{format}', is not a valid value".format(format=format))
+
+        if output_format not in Defaults.dump_formats:
+            raise ValueError(f"Argument value for format, '{format}', is not a valid value")
 
         if output_format == "json":
-            template =  "{{ '{environment}': {{ 'proxy_hostname': '{hostname}', 'proxy_port': {port}, " \
-                        "'request_timeout_ms': {request_timeout}, 'async_timeout_ms': {async_timeout} }} }}"
-            output = template.format(environment=self.environment, hostname=self.hostname, port=self.port, \
-                                     request_timeout=self.request_timeout, async_timeout=self.async_timeout)
-        
+            output = f"{{ '{self.environment}': {{ 'proxy_hostname': '{self.hostname}', 'proxy_port': {self.port}, " \
+                        f"'request_timeout_ms': {self.request_timeout}, 'async_timeout_ms': {self.async_timeout} }} }}"
+
         return output
 
     @property
@@ -111,20 +108,20 @@ class Defaults:
     @environment.setter
     def environment(self, environment):
         """ Sets the environment property.
-        
-        Switching environments will overwrite all config values with the 
+        Switching environments will overwrite all config values with the
         defaults for the selected environment.  Items are exposed as properties
         and can be individually overridden using the property syntax.
         """
-        valid_environments = Defaults.default_enumeration.keys()
-        if environment in valid_environments:
+        try:
+            default_env = Defaults.default_enumeration[environment]
             self._environment = environment
-            self.hostname = Defaults.default_enumeration[environment]["proxy_hostname"]
-            self.port = Defaults.default_enumeration[environment]["proxy_port"]
-            self.request_timeout =  Defaults.default_enumeration[environment]["request_timeout_ms"]
-            self.async_timeout =  Defaults.default_enumeration[environment]["async_timeout_ms"]
-        else:
-            raise ValueError("Environment '{env}' is not a valid environment".format(env=environment))
+            self.hostname = default_env["proxy_hostname"]
+            self.port = default_env["proxy_port"]
+            self.request_timeout = default_env["request_timeout_ms"]
+            self.async_timeout = default_env["async_timeout_ms"]
+        except KeyError as ke:
+            raise ValueError(f"Environment '{environment}' is not a valid environment") from ke
+
 
 def test_read_property():
     config = Defaults()
@@ -133,8 +130,9 @@ def test_read_property():
     assert config.request_timeout == 2000, "test_read_property: Incorrect request_timeout"
     assert config.async_timeout == 1000, "test_read_property: async_timeout hostname"
 
+
 def test_set_property():
-    """ Test that all properties are set correctly 
+    """ Test that all properties are set correctly
         (except the environment property, this is a special case)
     """
     config = Defaults()
@@ -159,24 +157,26 @@ def test_set_property():
     config.async_timeout = 1001
     assert config.async_timeout == 1001, "test_set_property: Incorrect async_timeout (post value)"
 
+
 def test_dump_valid_format():
     """Do we want to be more pedantic with this test?
     e.g., do we want to validate the syntax of the format selected?
     """
     config = Defaults()
-    expected_output = "{ 'production': { 'proxy_hostname': 'prod.fnal.gov', 'proxy_port': 80, 'request_timeout_ms': 2000, 'async_timeout_ms': 1000 } }"
-    
-    assert (config.dump(format="json") == expected_output), "test_dump_valid_format: JSON output did not match expected output"
+    expected_output = "{ 'production': { 'proxy_hostname': 'prod.fnal.gov', 'proxy_port': 80, 'request_timeout_ms': 2000," \
+        " 'async_timeout_ms': 1000 } }"
+    assert config.dump(format="json") == expected_output, "test_dump_valid_format: JSON output did not match expected output"
+
 
 def test_dump_invalid_format():
     """ Test that an exception is thrown when an invalid format is specified """
     config = Defaults()
-    
     try:
         config.dump(format="garbage")
         assert False, "test_dump_invalid_format: did not throw an exception as expected"
     except ValueError:
         assert True
+
 
 def test_set_valid_environment():
     config = Defaults()
@@ -188,18 +188,20 @@ def test_set_valid_environment():
     assert config.request_timeout == 2000, "test_set_valid_environment: Incorrect request_timeout"
     assert config.async_timeout == 1000, "test_set_valid_environment: Incorrect async_timeout"
 
+
 def test_set_invalid_environment():
     config = Defaults()
-    
     try:
         config.environment = "garbage"
         assert False, "test_set_invalid_environment: did not throw an exception as expected"
     except ValueError:
         assert True
 
+
 def test_set_additional_config():
     config = Defaults(additional_config={'foo': 'bar'})
     assert (config.foo == 'bar'), "test_set_additional_config: Additional config 'baz' did not equal 'bar'"
+
 
 def test_set_initial_environment():
     config = Defaults(default_environment="test")
@@ -209,12 +211,13 @@ def test_set_initial_environment():
     assert config.request_timeout == 2000, "test_set_valid_environment: Incorrect request_timeout"
     assert config.async_timeout == 1000, "test_set_valid_environment: Incorrect async_timeout"
 
+
 if __name__ == "__main__":
     # Run tests
     test_read_property()
     test_set_property()
     test_dump_valid_format()
     test_dump_invalid_format()
-    test_set_valid_environment()    
+    test_set_valid_environment()
     test_set_invalid_environment()
     test_set_additional_config()
