@@ -74,10 +74,7 @@ async def find_service(con, clock=Clock_Tclk, node=None):
         replier, _ = await con.request_reply(task, msg, timeout=150,
                                              proto=acsys.sync.syncd_protocol)
         return await con.get_name(replier)
-    except acsys.status.Status as exception:
-        if exception != acsys.status.ACNET_UTIME:
-            raise
-
+    except acsys.status.AcnetUserGeneratedNetworkTimeout:
         return None
 
 
@@ -96,10 +93,9 @@ no nodes are found, an empty list is returned.
     try:
         async for replier, _ in gen:
             result.append(await con.get_name(replier))
-    except acsys.status.Status as exception:
-        if exception != acsys.status.ACNET_UTIME:
-            raise
-    return result
+    except acsys.status.AcnetUserGeneratedNetworkTimeout:
+        return result
+    
 
 
 async def get_events(con, ev_str, sync_node=None, clock=Clock_Tclk):
@@ -131,7 +127,7 @@ occur.
         if sync_node is None:
             node = await find_service(con, clock=clock, node=sync_node)
             if node is None:
-                raise acsys.status.ACNET_NO_NODE
+                raise acsys.status.AcnetNoSuchLogicalNode()
         else:
             node = sync_node
 
@@ -152,8 +148,8 @@ occur.
                                          event.state.value)
                     else:
                         yield ClockEvent(stamp, event.clock.event, event.clock.number)
-        except acsys.status.Status as exception:
-            if exception == acsys.status.ACNET_DISCONNECTED:
-                raise
-            _log.warning('lost connection with SYNC service')
+        except acsys.status.AcnetReplyTaskDisconnected:
+            raise
+        except acsys.status.AcnetException as exception:
+            _log.warning(f'lost connection with SYNC service: {exception!r}')
             await asyncio.sleep(0.5)

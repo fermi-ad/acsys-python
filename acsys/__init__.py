@@ -115,7 +115,7 @@ import socket
 import struct
 import nest_asyncio
 import acsys.status as status
-from acsys.status import ACNET_DISCONNECTED
+from acsys.status import AcnetReplyTaskDisconnected
 
 # https://packaging.python.org/guides/single-sourcing-package-version/#single-sourcing-the-version
 try:
@@ -148,7 +148,7 @@ _ackMap = {
 
 
 def _throw_bug(_):
-    raise status.ACNET_REQTMO
+    raise status.AcnetRequestTimeOutQueuedAtDestination()
 
 
 def _decode_ack(buf):
@@ -228,7 +228,7 @@ class _AcnetdProtocol(asyncio.Protocol):
                 replier = pkt[6] * 256 + pkt[7]
                 reqid = pkt[17] * 256 + pkt[16]
                 last = (pkt[2] & 1) == 0
-                sts = status.Status(sts)
+                sts = status.Status.create(sts)
 
                 if sts != status.ACNET_PEND:
 
@@ -270,7 +270,7 @@ class _AcnetdProtocol(asyncio.Protocol):
         # Loop through all active requests and send a message
         # indicating the request is done.
 
-        msg = (0, ACNET_DISCONNECTED, b'')
+        msg = (0, AcnetReplyTaskDisconnected(), b'')
         for _, func in self._rpy_map.items():
             func(msg, True)
         self._rpy_map = {}
@@ -292,7 +292,7 @@ class _AcnetdProtocol(asyncio.Protocol):
             self.transport.write(buf)
             return _decode_ack(await ack_fut)
 
-        raise ACNET_DISCONNECTED
+        raise AcnetReplyTaskDisconnected()
 
 # This class manages the connection between the client and acnetd. It
 # defines the public API.
@@ -375,13 +375,12 @@ receive a properly created one indirectly through
             while True:
                 try:
                     return await self.protocol.xact(buf)
-                except status.Status as sts:
-                    if sts == ACNET_DISCONNECTED \
-                            and (self.protocol is not None):
+                except status.AcnetReplyTaskDisconnected:
+                    if self.protocol is not None:
                         self.protocol = None
                     raise
         else:
-            raise ACNET_DISCONNECTED
+            raise AcnetReplyTaskDisconnected()
 
     # Used to tell acnetd to cancel a specific request ID. This method
     # doesn't return an error; if the request ID existed, it'll be
@@ -417,7 +416,7 @@ receive a properly created one indirectly through
         _log.debug('registering with ACSys')
         buf = struct.pack('>I2H3IH', 18, 1, 1, self._raw_handle, 0, 0, 0)
         res = await proto.xact(buf)
-        sts = status.Status(res[1])
+        sts = status.Status.create(res[1])
 
         # A good reply is a tuple with 4 elements.
 
@@ -442,7 +441,7 @@ receive a properly created one indirectly through
                 raise
         else:
             _log.error('*** unable to connect to ACSys')
-            raise ACNET_DISCONNECTED
+            raise AcnetReplyTaskDisconnected()
 
     async def get_name(self, addr):
         """Look-up node name.
@@ -454,7 +453,7 @@ address, `addr`.
         if isinstance(addr, int) and 0 <= addr <= 0x10000:
             buf = struct.pack('>I2H2IH', 14, 1, 12, self._raw_handle, 0, addr)
             res = await self._xact(buf)
-            sts = status.Status(res[1])
+            sts = status.Status.create(res[1])
 
             # A good reply is a tuple with 3 elements.
 
@@ -477,7 +476,7 @@ the ACSys node name, `name`.
             buf = struct.pack('>I2H3I', 16, 1, 11, self._raw_handle, 0,
                               Connection.__ator(name))
             res = await self._xact(buf)
-            sts = status.Status(res[1])
+            sts = status.Status.create(res[1])
 
             # A good reply is a tuple with 4 elements.
 
@@ -500,7 +499,7 @@ connection.
         """
         buf = struct.pack('>I2H2I', 12, 1, 13, self._raw_handle, 0)
         res = await self._xact(buf)
-        sts = status.Status(res[1])
+        sts = status.Status.create(res[1])
 
         # A good reply is a tuple with 4 elements.
 
@@ -588,7 +587,7 @@ into this efficient format.
                               self._raw_handle, 0, task, node, mult,
                               timeout) + message
             res = await self._xact(buf)
-            sts = status.Status(res[1])
+            sts = status.Status.create(res[1])
 
             # A good reply is a tuple with 3 elements. The last
             # element will be the request ID, which is what we return
@@ -777,11 +776,8 @@ problems, this method will raise an ACSys Status code.
         try:
             await self.request_reply(f'ACNET@{node}', b'\x00\x00', timeout=250)
             return True
-        except status.Status as exception:
-            if exception == status.ACNET_REQTMO:
-                return False
-
-            raise exception
+        except status.AcnetRequestTimeOutQueuedAtDestination:
+            return False
 
 
 async def _create_socket():

@@ -147,7 +147,7 @@ the result of a setting.
 
     def __init__(self, tag, status):
         self._tag = tag
-        self._status = acsys.status.Status(status)
+        self._status = acsys.status.Status.create(status)
 
     @property
     def tag(self):
@@ -232,7 +232,7 @@ for you as well as clean-up properly.
         try:
             return await asyncio.wait_for(self._transport, timeout=None)
         except asyncio.TimeoutError as exc:
-            raise acsys.status.ACNET_DISCONNECTED from exc
+            raise acsys.status.AcnetReplyTaskDisconnected() from exc
 
     # We use the state of the DPM object to initialize the state of
     # the connection. This means a new DPM object will do the minimum
@@ -360,7 +360,7 @@ for you as well as clean-up properly.
                             DigitalAlarm_reply,
                             BasicStatus_reply)):
             return ItemData(msg.ref_id, msg.cycle, msg.timestamp,
-                            acsys.status.Status(msg.status),
+                            acsys.status.Status.create(msg.status),
                             msg.__dict__, meta=self.meta.get(msg.ref_id, {}))
         if isinstance(msg, (Raw_reply,
                             ScalarArray_reply,
@@ -368,7 +368,7 @@ for you as well as clean-up properly.
                             TextArray_reply,
                             Text_reply)):
             return ItemData(msg.ref_id, msg.cycle, msg.timestamp,
-                            acsys.status.Status(msg.status),
+                            acsys.status.Status.create(msg.status),
                             msg.data, meta=self.meta.get(msg.ref_id, {}))
         if isinstance(msg, ApplySettings_reply):
             return [ItemStatus(reply.ref_id, reply.status)
@@ -386,7 +386,7 @@ for you as well as clean-up properly.
             return None
         if isinstance(msg, TimedScalarArray_reply):
             return ItemData(msg.ref_id, msg.cycle, msg.timestamp,
-                            acsys.status.Status(msg.status),
+                            acsys.status.Status.create(msg.status),
                             msg.data, meta=self.meta.get(msg.ref_id, {}),
                             micros=msg.micros)
         return msg
