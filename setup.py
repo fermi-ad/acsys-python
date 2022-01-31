@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="acsys",
-    version="1.0.0rc6",
+    version="1.0.0rc7",
     author="Rich Neswold",
     author_email="neswold@fnal.gov",
     description="ACSys Client library",
