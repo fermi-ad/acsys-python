@@ -8,6 +8,7 @@ from acsys import daq_lib
 # This function monitors two weather-related devices and uses
 # callbacks to print the value.
 
+
 def monitor_weather(daq_chan):
     # We can put acquisition "in the background" and let a callback
     # handle the data.
@@ -60,7 +61,7 @@ def main():
     # specified function. When the function exits, the acquisition is
     # canceled.
 
-    daq = daq_libDeviceData()
+    daq = daq_lib.DeviceData()
 
     # create two new threads
     thread_1 = Thread(target=monitor_weather, args=(daq,))
