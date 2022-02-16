@@ -14,8 +14,8 @@ while True:
     cube_z = daq.read('Z:CUBE_Z')
 
     try:
-        daq.set('Z:CUBE_X', cube_x.value + 12, role=['rotating'])
-        daq.set('Z:CUBE_Y', cube_y.value + 12, role=['rotating'])
-        daq.set('Z:CUBE_Z', cube_z.value + 12, role=['rotating'])
-    except daq.DeviceError as error:
+        daq.set('Z:CUBE_X', cube_x.value + 12, roles=['rotating'])
+        daq.set('Z:CUBE_Y', cube_y.value + 12, roles=['rotating'])
+        daq.set('Z:CUBE_Z', cube_z.value + 12, roles=['rotating'])
+    except daq_lib.DeviceError as error:
         print(f'Error setting devices: {error}')

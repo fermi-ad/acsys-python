@@ -7,7 +7,7 @@ daq = daq_lib.DeviceData()
 cube_x = daq_lib.Device(daq, 'Z:CUBE_X')
 device_list = [cube_x]
 
-cube_x.handle_readings(cb=lambda res: print(f'{res.value} degF'))
+cube_x.handle_readings(callback=lambda res: print(f'{res.value} degF'))
 
 # This only returns after the slowest reading is complete.
 print(cube_x.read())  # {device: "Z:CUBE_X", value: 4.0}
@@ -17,7 +17,7 @@ print(cube_x.read())  # {device: "Z:CUBE_X", value: 4.0}
 cube_x.set(12)
 
 try:
-    daq_lib.apply_settings(device_list, role=['rotating'])
+    daq_lib.apply_settings(device_list, roles=['rotating'])
 except daq_lib.DeviceError as error:
     print(f'Error setting devices: {error}')
 

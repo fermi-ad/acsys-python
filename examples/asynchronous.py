@@ -5,15 +5,14 @@ import asyncio
 from acsys import daq_lib
 
 
-# This async function monitors two weather-related devices and uses
-# callbacks to print the value.
-
 async def monitor_weather(daq_chan):
+    """This async function monitors two weather-related devices and uses
+    callbacks to print the value."""
     # We can put acquisition "in the background" and let a callback
     # handle the data.
 
     daq_lib.handle_readings(daq_chan, 'M:OUTTMP@p,10000',
-                            cb=lambda res: print(f'{res} degF'))
+                            callback=lambda res: print(f'{res} degF'))
 
     # Or we can create a Device object and process the stream of
     # readings.
@@ -23,14 +22,13 @@ async def monitor_weather(daq_chan):
     async for reading in humid:
         print(f'{reading.value} %')
 
-# This async function sets ACNET devices that are used in the
-# "Rotating Cube" web page. It updates the angles of rotation at 5 hz.
-
 
 async def rotate_cube(daq_chan):
-    cube_x = daq_lib.Device(daq_chan, 'Z:CUBE_X.SETTING@N', role=['rotating'])
-    cube_y = daq_lib.Device(daq_chan, 'Z:CUBE_Y.SETTING@N', role=['rotating'])
-    cube_z = daq_lib.Device(daq_chan, 'Z:CUBE_Z.SETTING@N', role=['rotating'])
+    """This async function sets ACNET devices that are used in the
+    "Rotating Cube" web page. It updates the angles of rotation at 5 hz."""
+    cube_x = daq_lib.Device(daq_chan, 'Z:CUBE_X.SETTING@N', roles=['rotating'])
+    cube_y = daq_lib.Device(daq_chan, 'Z:CUBE_Y.SETTING@N', roles=['rotating'])
+    cube_z = daq_lib.Device(daq_chan, 'Z:CUBE_Z.SETTING@N', roles=['rotating'])
 
     x_pos = 0
     y_pos = 0
@@ -49,18 +47,16 @@ async def rotate_cube(daq_chan):
 
         await asyncio.sleep(0.2)
 
-# This is the main entry point for our data acquisition loop. When
-# this method exits, the connection to DPM will be closed.
-
 
 async def daq_entry(daq_chan, **kwds):
+    """This is the main entry point for our data acquisition loop. When
+    this method exits, the connection to DPM will be closed."""
     await asyncio.gather(monitor_weather(daq_chan),
                          rotate_cube(daq_chan))
 
-# Main entry point for someone's async script.
-
 
 async def main():
+    """Main entry point for an async script."""
 
     # Do whatever initialization.
 
