@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
 
 
-from ctypes import Union
 from datetime import date
-from typing import AsyncIterable, Callable, Iterable, Iterator, List, Optional
+from typing import (
+    AsyncIterable,
+    AsyncIterator,
+    Callable,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Union
+)
 
 from grpc import Channel
 
@@ -37,11 +45,11 @@ class Device(Iterable, AsyncIterable):
         """Provide data in an iterator."""
         raise NotImplementedError
 
-    def __aiter__(self) -> Iterator[DeviceReading]:
+    def __aiter__(self) -> AsyncIterator[DeviceReading]:
         """Provide data in an iterator."""
         raise NotImplementedError
 
-    def __anext__(self) -> Iterator[DeviceReading]:
+    def __anext__(self) -> AsyncIterator[DeviceReading]:
         """Provide data in an iterator."""
         raise NotImplementedError
 
@@ -91,6 +99,7 @@ class DeviceData:
         """Start reading a device."""
         raise NotImplementedError
 
+
 class DeviceError(Exception):
     """DeviceError class doc"""
     ...
@@ -108,6 +117,7 @@ def handle_readings(
 ) -> None:
     """Enter acquisition mode"""
     raise NotImplementedError
+
 
 def apply_settings(
     # There's not good support for zip typing here. I think Iterator works.
