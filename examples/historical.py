@@ -5,7 +5,7 @@ from datetime import date
 from acsys import daq_lib
 
 
-daq = daq_lib.DeviceData()
+daq = daq_lib.DeviceDataAcquisition()
 
 # Request historical data isn't much different than the live data requests.
 # The context for the request determines what the data source is.

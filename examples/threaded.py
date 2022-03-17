@@ -59,7 +59,7 @@ def main():
     # specified function. When the function exits, the acquisition is
     # canceled.
 
-    daq=daq_lib.DeviceData()
+    daq=daq_lib.DeviceDataAcquisition()
 
     # create two new threads
     thread_1=Thread(target=monitor_weather, args=(daq,))

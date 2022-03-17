@@ -3,7 +3,7 @@
 from acsys import daq_lib
 
 
-daq = daq_lib.DeviceData()
+daq = daq_lib.DeviceDataAcquisition()
 
 # This uses the context manager to automatically close the connection
 # when leaving the block.

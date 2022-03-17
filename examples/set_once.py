@@ -3,7 +3,7 @@
 from acsys import daq_lib
 
 
-daq = daq_lib.DeviceData(role='testing')
+daq = daq_lib.DeviceDataAcquisition(role='testing')
 
 daq.set('Z:CUBE_X', 4.0)
 

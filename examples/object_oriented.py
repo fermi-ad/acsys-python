@@ -3,7 +3,7 @@
 from acsys import daq_lib
 
 long_list_of_strings = [...]
-daq = daq_lib.DeviceData()
+daq = daq_lib.DeviceDataAcquisition()
 cube_x = daq_lib.Device(daq, 'Z:CUBE_X')
 device_list = [cube_x]
 

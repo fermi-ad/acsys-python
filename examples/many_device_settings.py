@@ -5,7 +5,7 @@ from acsys import daq_lib
 
 long_list_of_device_strings = [...]
 long_list_of_device_settings = [...]
-daq = daq_lib.DeviceData()
+daq = daq_lib.DeviceDataAcquisition()
 
 try:
     daq_lib.apply_settings(

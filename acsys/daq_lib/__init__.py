@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 
 
+""""daq_lib is a module that provides a high-level interface to ACSys device
+    data acquisition. It is designed to be used both functionally and object
+    oriented with the DeviceDataAcquisition class. The DeviceDataAcquisition
+    class is a wrapper around the ACSys device data acquisition library."""
+
 from datetime import date
 from typing import (
     AsyncIterable,
@@ -66,8 +71,8 @@ class Device(Iterable, AsyncIterable):
         raise NotImplementedError
 
 
-class DeviceData:
-    """DeviceData class doc"""
+class DeviceDataAcquisition:
+    """DeviceDataAcquisition class doc"""
 
     def __init__(self, roles: Optional[List[str]] = None) -> None:
         self.roles = roles if roles is not None else []

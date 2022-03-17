@@ -3,6 +3,6 @@
 from acsys import daq_lib
 
 
-daq = daq_lib.DeviceData()
+daq = daq_lib.DeviceDataAcquisition()
 
 print(f'temp: {daq.read("Z:TSTDEV[:]").value}')

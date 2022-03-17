@@ -3,7 +3,7 @@
 from acsys import daq_lib
 
 
-daq = daq_lib.DeviceData()
+daq = daq_lib.DeviceDataAcquisition()
 
 while True:
     # $02 event fires every 5 seconds.
