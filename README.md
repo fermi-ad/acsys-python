@@ -46,18 +46,6 @@ make deploy
 
 The above will generate the distributions and push them to the AD Controls pip server.
 
-## Development
-
-Start by installing development dependencies.
-
-```bash
-pip install -r requirements.txt
-```
-
-To test local modifications, use pip's editable mode.
-
-`pip install -e .`
-
 Make sure to use git to tag the version.
 
 ```bash
@@ -69,3 +57,15 @@ And push the tags.
 ```bash
 git push --tags
 ```
+
+## Development
+
+Start by installing development dependencies.
+
+```bash
+pip install -r requirements.txt
+```
+
+To test local modifications, use pip's editable mode.
+
+`pip install -e .`

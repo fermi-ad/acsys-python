@@ -34,6 +34,16 @@ ItemStatus."""
     def tag(self):
         return self._tag
 
+    @property
+    def isReading(self):
+        """Returns True if this object is an ItemData object."""
+        return False
+
+    @property
+    def isStatus(self):
+        """Returns True if this object is an ItemStatus object."""
+        return False
+
     def isReadingFor(self, *tags):
         """Returns True if this object is an ItemData object and its 'tag'
 field matches the parameter 'tag'.
@@ -112,6 +122,10 @@ The index of each timestamp cooresponds to the same index in 'data'.
         """
         return self._micros
 
+    @property
+    def isReading(self):
+        return True
+
     def __str__(self):
         guaranteed_fields = f'{{ tag: {self.tag}, stamp: {self.stamp}, data: {self.data}, meta: {self.meta}'
 
@@ -150,6 +164,10 @@ result of a setting.
         """Indicates the resulting status of the request associated with
 'tag'."""
         return self._status
+
+    @property
+    def isStatus(self):
+        return True
 
     def __str__(self):
         return f'{{ tag: {self.tag}, status: {self.status} }}'
