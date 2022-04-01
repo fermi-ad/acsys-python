@@ -398,24 +398,15 @@ This method is the preferred way to iterate over DPM replies.
         """
         self._dev_list.get(tag)
 
-    async def _retryable_request(self, msg):
-        for _tries in range(2):
-            _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                                  timeout=self.req_tmo,
-                                                  proto=acsys.dpm.dpm_protocol)
-            sts = acsys.status.Status(msg.status)
+    async def _request(self, msg):
+        _, msg = await self.con.request_reply(self.dpm_task, msg,
+                                              proto=acsys.dpm.dpm_protocol)
+        sts = acsys.status.Status(msg.status)
 
-            if not sts.isFatal:
-                return
-            if sts != acsys.status.ACNET_REQTMO:
-                raise sts
+        if not sts.isFatal:
+            return msg
 
-            # Received a request timeout. Log it and retry the
-            # operation.
-
-            _log.info(f'DPM({self.list_id}) retrying request: {msg}')
-
-        raise acsys.status.ACNET_REQTMO
+        raise sts
 
     async def clear_list(self):
         """Clears all entries in the tag/drf dictionary.
@@ -430,7 +421,7 @@ list, either '.stop()' or '.start()' needs to be called.
         async with self._state_sem:
             _log.debug('DPM(id: %d) clearing list', self.list_id)
             msg.list_id = self.list_id
-            await self._retryable_request(msg)
+            await self._request(msg)
 
             # DPM has been updated so we can safely clear the dictionary.
 
@@ -448,7 +439,7 @@ list, either '.stop()' or '.start()' needs to be called.
         # status in the reply message, we raise it ourselves.
 
         _log.debug('DPM(id: %d) adding tag:%d, drf:%s', self.list_id, tag, drf)
-        await self._retryable_request(msg)
+        await self._request(msg)
 
         # DPM has been updated so we can safely add the entry to our
         # device list.
@@ -570,7 +561,7 @@ Data associated with the 'tag' will continue to be returned until the
                 msg.ref_id = tag
 
                 _log.debug('DPM(id: %d) removing tag:%d', self.list_id, tag)
-                await self._retryable_request(msg)
+                await self._request(msg)
 
                 # DPM has been updated so we can safely remove the
                 # entry from our device list.
@@ -587,7 +578,7 @@ Data associated with the 'tag' will continue to be returned until the
         if self.model:
             msg.model = self.model
 
-        await self._retryable_request(msg)
+        await self._request(msg)
         self.active = True
 
     async def start(self, model=None):
@@ -621,7 +612,7 @@ calling this method, a few readings may still get delivered.
         async with self._state_sem:
             _log.debug('DPM(id: %d) stopping list', self.list_id)
             msg.list_id = self.list_id
-            await self._retryable_request(msg)
+            await self._request(msg)
             self.active = False
 
     async def _shutdown(self):
@@ -654,9 +645,7 @@ calling this method, a few readings may still get delivered.
             if tok is not None:
                 msg.token = tok
 
-            rnode, msg = await self.con.request_reply(self.dpm_task, msg,
-                                                      timeout=self.req_tmo,
-                                                      proto=acsys.dpm.dpm_protocol)
+            msg = await self._request(msg)
 
             if isinstance(msg, Authenticate_reply):
                 return msg
@@ -748,7 +737,7 @@ the role.
                     msg.message = b'1234'
                     msg.MIC = ctx.get_signature(msg.message)
 
-                    await self._retryable_request(msg)
+                    await self._request(msg)
                     self.can_set = True
                     _log.info('DPM(id: %d) settings enabled', self.list_id)
             finally:
@@ -788,7 +777,7 @@ the role.
                     msg.scaled_array.append(s)
 
             msg.list_id = self.list_id
-            await self._retryable_request(msg)
+            await self._request(msg)
 
 
 class DPMContext:
