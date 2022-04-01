@@ -143,7 +143,7 @@ _ackMap = {
     16: lambda buf: struct.unpack('>2xHhHI', buf)
 }
 
-def _throw_bug(_): raise status.ACNET_REQTMO
+def _throw_bug(_): raise status.ACNET_BUG
 
 def _decode_ack(buf):
     return (_ackMap.get(buf[2] * 256 + buf[3], _throw_bug))(buf)
