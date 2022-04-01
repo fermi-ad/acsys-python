@@ -645,7 +645,8 @@ calling this method, a few readings may still get delivered.
             if tok is not None:
                 msg.token = tok
 
-            msg = await self._request(msg)
+            _, msg = await self.con.request_reply(self.dpm_task, msg,
+                                                  proto=acsys.dpm.dpm_protocol)
 
             if isinstance(msg, Authenticate_reply):
                 return msg
