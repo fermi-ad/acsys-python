@@ -251,6 +251,7 @@ class DPM:
 
         # When accessing these properties, '_state_sem' must be owned.
 
+        self.dpm_task = None
         self.dpm_cancel = None
         self.list_id = None
         self._dev_list = {}
