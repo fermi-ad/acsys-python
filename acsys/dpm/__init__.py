@@ -252,7 +252,6 @@ class DPM:
         # When accessing these properties, '_state_sem' must be owned.
 
         self.dpm_task = None
-        self.dpm_cancel = None
         self.list_id = None
         self._dev_list = {}
         self._qrpy = []
@@ -381,19 +380,14 @@ This method is the preferred way to iterate over DPM replies.
 
         # Send an OPEN LIST request to the DPM.
 
-        loop = asyncio.get_running_loop()
-        dpm_cancel = loop.create_future()
         gen = self.con.request_stream(self.dpm_task, OpenList_request(),
-                                      timeout=self.req_tmo,
-                                      proto=acsys.dpm.dpm_protocol,
-                                      done_fut=dpm_cancel)
+                                      timeout=self.req_tmo, proto=acsys.dpm.dpm_protocol)
         _, msg = await gen.asend(None)
         _log.info('DPM returned list id %d', msg.list_id)
 
         # Update object state.
 
         self.gen = gen
-        self.dpm_cancel = dpm_cancel
         self.list_id = msg.list_id
         await self._add_to_list(lock, 0, f'#USER:{getpass.getuser()}')
         await self._add_to_list(lock, 0, f'#PID:{os.getpid()}')
@@ -622,8 +616,8 @@ calling this method, a few readings may still get delivered.
             self.active = False
 
     async def _shutdown(self):
-        if self.dpm_cancel is not None:
-            self.dpm_cancel.cancel()
+        if self.gen:
+            await self.gen.aclose()
 
     @staticmethod
     def _build_struct(ref_id, value):
