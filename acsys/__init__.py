@@ -701,7 +701,7 @@ isn't an integer, ValueError is raised.
         # `task` (required by `asyncio.wait()`.)
 
         if done_fut is not None:
-            pending.add(asyncio.create_task(done_fut))
+            pending.add(done_fut)
 
         try:
             reqid = await self._mk_req(remtsk, message, 1, proto, timeout)
@@ -740,7 +740,7 @@ isn't an integer, ValueError is raised.
                 # generator exits.
 
                 if not reply_task in resolved:
-                    return None
+                    raise GeneratorExit
 
                 (snd, sts, msg, done) = next_reply.result()
 
