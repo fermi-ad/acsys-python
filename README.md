@@ -7,7 +7,7 @@
 `acsys` is available via a Fermi hosted pip repository.
 
 ```bash
-pip install acsys
+python3 -m pip install acsys --extra-index-url https://www-bd.fnal.gov/pip3
 ```
 
 The command above will get you up and going quickly. See usage examples in the [wiki](https://github.com/fermi-controls/acsys-python/wiki).
@@ -15,10 +15,16 @@ The command above will get you up and going quickly. See usage examples in the [
 If you need to perform settings, authentication is required and thus the `gssapi` authentication library.
 
 ```bash
-pip install 'acsys[settings]'
+python3 -m pip install acsys[settings]
 ```
 
 Note: This package only authenticates you as a user. There are other requirements to be able to set devices. Please make a request to the Controls Department for setting access.
+
+If you would like to install all dependencies, use the following.
+
+```bash
+python3 -m pip install acsys[all]
+```
 
 ## Building
 
