@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="acsys",
-    version="0.12.3",
+    version="0.12.4",
     author="Rich Neswold",
     author_email="neswold@fnal.gov",
     description="ACSys Client library",
@@ -18,13 +18,17 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    install_requires=[
-        'gssapi',
+    install_requires=[  # Default
         'nest_asyncio',
         'importlib-metadata; python_version < "3.8"',
     ],
     extras_require={  # Optional
-        'settings': ['gssapi']
+        'settings': ['gssapi'],
+        'all': [
+            'importlib-metadata; python_version < "3.8"',
+            'gssapi',
+            'nest_asyncio'
+        ]
     },
     python_requires='>=3.6',
     license="MIT",
