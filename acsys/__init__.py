@@ -742,7 +742,7 @@ isn't an integer, ValueError is raised.
                 if not reply_task in resolved:
                     raise GeneratorExit
 
-                (snd, sts, msg, done) = next_reply.result()
+                (snd, sts, msg, done) = reply_task.result()
 
                 if not sts.isFatal:
                     if (proto is not None) and len(msg) > 0:
