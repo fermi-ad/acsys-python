@@ -165,8 +165,12 @@ class __AcnetdProtocol(asyncio.Protocol):
 
     def end(self):
         if self.transport:
-            self.transport.close()
-            self.transport = None
+            try:
+                self.transport.close()
+            except RuntimeError:
+                pass
+            finally:
+                self.transport = None
 
     def add_handler(self, reqid, handler):
         self._rpy_map[reqid] = handler
