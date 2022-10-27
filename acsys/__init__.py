@@ -165,8 +165,12 @@ class __AcnetdProtocol(asyncio.Protocol):
 
     def end(self):
         if self.transport:
-            self.transport.close()
-            self.transport = None
+            try:
+                self.transport.close()
+            except RuntimeError:
+                pass
+            finally:
+                self.transport = None
 
     def add_handler(self, reqid, handler):
         self._rpy_map[reqid] = handler
@@ -664,7 +668,7 @@ isn't an integer, ValueError is raised.
             _, replier, sts, msg, _ = replies[0]
             return process_reply((replier, sts, msg))
 
-    async def request_stream(self, remtsk, message, *, proto=None, timeout=1000):
+    async def request_stream(self, remtsk, message, *, proto=None, timeout=1000, done_fut=None):
         """Request a stream of replies from an ACSys task.
 
 This function sends a request to an ACSys task and returns an async
@@ -694,6 +698,15 @@ If the message is in an incorrect format or the timeout parameter
 isn't an integer, ValueError is raised.
 
         """
+
+        pending = set([])
+
+        # If the caller provides a "signalling" future, wrap it in a
+        # `task` (required by `asyncio.wait()`.)
+
+        if done_fut is not None:
+            pending.add(done_fut)
+
         try:
             reqid = await self._mk_req(remtsk, message, 1, proto, timeout)
             rpy_q = asyncio.Queue()
@@ -720,13 +733,28 @@ isn't an integer, ValueError is raised.
 
             done = False
             while not done:
-                snd, sts, msg, done = await rpy_q.get()
-                if not sts.isFatal:
-                    if (proto is not None) and len(msg) > 0:
-                        msg = proto.unmarshal_reply(iter(msg))
-                    yield (snd, msg)
-                else:
+                next_reply = rpy_q.get()
+                reply_task = asyncio.create_task(next_reply)
+                pending.add(reply_task)
+
+                (resolved, pending) = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+
+                # If `next_reply` is not in the resolved set, then the
+                # signalling future was set. In this case, the
+                # generator exits.
+
+                if not reply_task in resolved:
+                    return
+
+                (snd, sts, msg, done) = reply_task.result()
+
+                if sts.isFatal:
                     raise sts
+
+                if (proto is not None) and len(msg) > 0:
+                    msg = proto.unmarshal_reply(iter(msg))
+
+                yield (snd, msg)
         finally:
             # If this generator exits for any reason, cancel the
             # associated request.
