@@ -744,12 +744,13 @@ isn't an integer, ValueError is raised.
 
                 (snd, sts, msg, done) = reply_task.result()
 
-                if not sts.isFatal:
-                    if (proto is not None) and len(msg) > 0:
-                        msg = proto.unmarshal_reply(iter(msg))
-                    yield (snd, msg)
-                else:
+                if sts.isFatal:
                     raise sts
+
+                if (proto is not None) and len(msg) > 0:
+                    msg = proto.unmarshal_reply(iter(msg))
+
+                yield (snd, msg)
         finally:
             # If this generator exits for any reason, cancel the
             # associated request.
