@@ -331,9 +331,6 @@ class DPM:
                 if e == acsys.status.ACNET_DISCONNECTED:
                     raise
 
-            except GeneratorExit:
-                pass
-
             # If we've reached here, DPM returned a fatal ACNET
             # status. Whatever it was, we need to pick another DPM and
             # add all the current requests.

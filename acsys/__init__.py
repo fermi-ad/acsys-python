@@ -740,7 +740,7 @@ isn't an integer, ValueError is raised.
                 # generator exits.
 
                 if not reply_task in resolved:
-                    raise GeneratorExit
+                    return
 
                 (snd, sts, msg, done) = reply_task.result()
 
