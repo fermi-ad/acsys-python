@@ -362,7 +362,7 @@ This method is the preferred way to iterate over DPM replies.
             self._qrpy = []
             if self.can_set:
                 self.enable_settings()
-            await self._add_entries(lock, self._dev_list.items())
+            await self._add_entries(lock, list(self._dev_list.items()))
             if self.active:
                 await self.start(self.model)
 
