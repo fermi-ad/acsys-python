@@ -1,3 +1,5 @@
+import warnings
+
 class Status(Exception):
     """An ACSys status type."""
 
@@ -19,20 +21,52 @@ class Status(Exception):
     @property
     def errCode(self):
         """Returns the 'error' code of a status value."""
+        warnings.warn(
+            "deprecated in favor of the snake_case version, err_code",
+            DeprecationWarning)
+        return self.err_code
+
+    @property
+    def err_code(self):
+        """Returns the 'error' code of a status value."""
         return self.value // 256
 
     @property
     def isSuccess(self):
+        """Returns True if the status represents a success status."""
+        warnings.warn(
+            "deprecated in favor of the snake_case version, is_success",
+            DeprecationWarning)
+        return self.is_success
+
+    @property
+    def is_success(self):
         """Returns True if the status represents a success status."""
         return self.errCode == 0
 
     @property
     def isFatal(self):
         """Returns True if the status represents a fatal status."""
+        warnings.warn(
+            "deprecated in favor of the snake_case version, is_fatal",
+            DeprecationWarning)
+        return self.is_fatal
+
+    @property
+    def is_fatal(self):
+        """Returns True if the status represents a fatal status."""
         return self.errCode < 0
 
     @property
     def isWarning(self):
+        """Returns True if the status represents a warning status."""
+        warnings.warn(
+            "deprecated in favor of the snake_case version, is_warning",
+            DeprecationWarning)
+        return self.is_warning
+
+    @property
+    def is_warning(self):
         """Returns True if the status represents a warning status."""
         return self.errCode > 0
 
