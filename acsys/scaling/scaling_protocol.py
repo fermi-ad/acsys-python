@@ -27,24 +27,24 @@ class ProtocolError(Exception):
 
 # -- Internal marshalling routines --
 
-def emitRawInt(tag, val):
-    def emitEach(buf, n):
+def emit_raw_int(tag, val):
+    def emit_each(buf, n):
         curr = (val >> (n * 8)) & 0xff
         next = val >> ((n + 1) * 8)
         if (next == 0 and (curr & 0x80) != 0x80) or \
            (next == -1 and (curr & 0x80) == 0x80):
             buf.append(tag + n + 1)
         else:
-            emitEach(buf, n + 1)
+            emit_each(buf, n + 1)
         buf.append(curr)
     tmp = bytearray()
-    emitEach(tmp, 0)
+    emit_each(tmp, 0)
     return bytes(tmp)
 
 def marshal_int16(val):
     if isinstance(val, int):
         if val < 32768 and val > -32769:
-            return emitRawInt(0x10, val)
+            return emit_raw_int(0x10, val)
         else:
             raise ProtocolError("value out of range for int16")
     else:
@@ -53,7 +53,7 @@ def marshal_int16(val):
 def marshal_int32(val):
     if isinstance(val, int):
         if int(-2147483648) <= val <= int(2147483647):
-            return emitRawInt(0x10, val)
+            return emit_raw_int(0x10, val)
         else:
             raise ProtocolError("value out of range for int32")
     else:
@@ -64,20 +64,20 @@ def marshal_double(val):
 
 def marshal_string(val):
     if isinstance(val, str):
-        return chain(emitRawInt(0x40, len(val)),\
+        return chain(emit_raw_int(0x40, len(val)),\
                      (ord(ii) for ii in val))
     else:
         raise ProtocolError("expected string type")
 
 def marshal_binary(val):
     if isinstance(val, (bytearray, bytes)):
-        return chain(emitRawInt(0x30, len(val)), val)
+        return chain(emit_raw_int(0x30, len(val)), val)
     else:
         raise ProtocolError("expected bytearray type")
 
 def marshal_array(fn, val):
     if isinstance(val, list):
-        return chain(emitRawInt(0x50, len(val)),\
+        return chain(emit_raw_int(0x50, len(val)),\
                      chain.from_iterable((fn(v) for v in val)))
     else:
         raise ProtocolError("expected list type")
@@ -114,7 +114,7 @@ class Scale_request:
         """Returns a generator that emits a character stream representing
            the marshaled contents of Scale_request."""
         return chain(b'SDD\x02\x51\x03\x14\xbc\x96\x7d\xc2\x12\xbe\xf8',
-                     emitRawInt(0x50, 2 \
+                     emit_raw_int(0x50, 2 \
                         + (2 if hasattr(self, 'raw') else 0) \
                         + (2 if hasattr(self, 'scaled') else 0)),
                      b'\x12\x63\x24',
@@ -162,12 +162,12 @@ class Scale_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of Scale_reply."""
         return chain(b'SDD\x02\x51\x03\x14\xbc\x96\x7d\xc2\x12\x44\xf9',
-                     emitRawInt(0x50, 2 \
+                     emit_raw_int(0x50, 2 \
                         + (2 if hasattr(self, 'raw') else 0) \
                         + (2 if hasattr(self, 'scaled') else 0)),
                      b'\x12\x44\x54',
                      marshal_int16(self.status),
-                     chain(b'\x12\x66\xaf',
+                     chain(b'\x12\x66\xaf',ii_lenretVal
                            marshal_binary(self.raw)) \
                            if hasattr(self, 'raw') else bytearray(),
                      chain(b'\x12\xa9\x9b',
@@ -182,28 +182,28 @@ def marshal_reply(val):
 
 # -- Internal unmarshalling routines --
 
-def consumeRawInt(ii, tag):
-    iiTag = (ii.__next__())
-    iiLen = iiTag & 0xf
-    if (iiTag & 0xf0) == (tag & 0xf0) and iiLen > 0 and iiLen <= 8:
+def consume_raw_int(ii, tag):
+    ii_tag = (ii.__next__())
+    ii_len = ii_tag & 0xf
+    if (ii_tag & 0xf0) == (tag & 0xf0) and ii_len > 0 and ii_len <= 8:
         firstByte = (ii.__next__())
-        retVal = (0 if (0x80 & firstByte) == 0 else -256) | firstByte
-        while iiLen > 1:
-            retVal = (retVal << 8) | (ii.__next__())
-            iiLen = iiLen - 1
-        return int(retVal)
+        ret_val = (0 if (0x80 & firstByte) == 0 else -256) | firstByte
+        while ii_len > 1:
+            ret_val = (ret_val << 8) | (ii.__next__())
+            ii_len = ii_len - 1
+        return int(ret_val)
     else:
         raise ProtocolError("bad tag or length")
 
 def unmarshal_int16(ii):
-    val = consumeRawInt(ii, 0x10)
+    val = consume_raw_int(ii, 0x10)
     if val >= -0x8000 and val < 0x8000:
         return int(val)
     else:
         raise ProtocolError("value out of range for int16")
 
 def unmarshal_int32(ii):
-    val = consumeRawInt(ii, 0x10)
+    val = consume_raw_int(ii, 0x10)
     if int(-2147483648) <= val <= int(2147483647):
         return int(val)
     else:
@@ -218,36 +218,36 @@ def unmarshal_double(ii):
         raise ProtocolError("expected tag for double")
 
 def unmarshal_string(ii):
-    return bytearray(islice(ii, consumeRawInt(ii, 0x40))).decode('utf-8')
+    return bytearray(islice(ii, consume_raw_int(ii, 0x40))).decode('utf-8')
 
 def unmarshal_binary(ii):
-    return bytearray(islice(ii, consumeRawInt(ii, 0x30)))
+    return bytearray(islice(ii, consume_raw_int(ii, 0x30)))
 
 def unmarshal_array(ii, fn):
-    return [fn(ii) for x in range(consumeRawInt(ii, 0x50))]
+    return [fn(ii) for x in range(consume_raw_int(ii, 0x50))]
 
 def unmarshal_header(ii):
     if ii.__next__() != 83 or ii.__next__() != 68 or \
        ii.__next__() != 68 or ii.__next__() != 2 or \
-       consumeRawInt(ii, 0x50) != 3:
+       consume_raw_int(ii, 0x50) != 3:
         raise ProtocolError("invalid header")
-    elif consumeRawInt(ii, 0x10) != -1130988094:
+    elif consume_raw_int(ii, 0x10) != -1130988094:
         raise ProtocolError("incorrect protocol specified")
 
 def unmarshal_ServiceDiscovery_request(ii):
-    if consumeRawInt(ii, 0x50) != 0:
+    if consume_raw_int(ii, 0x50) != 0:
         raise ProtocolError("incorrect number of fields")
     else:
         return ServiceDiscovery_request()
 
 def unmarshal_Scale_request(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if (nFlds % 2) != 0 or nFlds < 2 or nFlds > 6:
+    n_flds = consume_raw_int(ii, 0x50)
+    if (n_flds % 2) != 0 or n_flds < 2 or n_flds > 6:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = Scale_request()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 25380:
                 tmp.drf_request = unmarshal_string(ii)
             elif fld == 26287:
@@ -259,13 +259,13 @@ def unmarshal_Scale_request(ii):
         return tmp
 
 def unmarshal_ServiceDiscovery_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 2:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 2:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = ServiceDiscovery_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 4527:
                 tmp.serviceLocation = unmarshal_string(ii)
             else:
@@ -273,13 +273,13 @@ def unmarshal_ServiceDiscovery_reply(ii):
         return tmp
 
 def unmarshal_Scale_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if (nFlds % 2) != 0 or nFlds < 2 or nFlds > 6:
+    n_flds = consume_raw_int(ii, 0x50)
+    if (n_flds % 2) != 0 or n_flds < 2 or n_flds > 6:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = Scale_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 17492:
                 tmp.status = unmarshal_int16(ii)
             elif fld == 26287:
@@ -296,7 +296,7 @@ def unmarshal_request(ii):
        will be raised."""
     try:
         unmarshal_header(ii)
-        msg = consumeRawInt(ii, 0x10)
+        msg = consume_raw_int(ii, 0x10)
         if msg == -8230:
             return unmarshal_ServiceDiscovery_request(ii)
         elif msg == -16648:
@@ -312,7 +312,7 @@ def unmarshal_reply(ii):
        will be raised."""
     try:
         unmarshal_header(ii)
-        msg = consumeRawInt(ii, 0x10)
+        msg = consume_raw_int(ii, 0x10)
         if msg == -12930:
             return unmarshal_ServiceDiscovery_reply(ii)
         elif msg == 17657:

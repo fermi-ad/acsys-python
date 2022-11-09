@@ -28,24 +28,24 @@ class ProtocolError(Exception):
 
 # -- Internal marshalling routines --
 
-def emitRawInt(tag, val):
-    def emitEach(buf, n):
+def emit_raw_int(tag, val):
+    def emit_each(buf, n):
         curr = (val >> (n * 8)) & 0xff
         next = val >> ((n + 1) * 8)
         if (next == 0 and (curr & 0x80) != 0x80) or \
            (next == -1 and (curr & 0x80) == 0x80):
             buf.append(tag + n + 1)
         else:
-            emitEach(buf, n + 1)
+            emit_each(buf, n + 1)
         buf.append(curr)
     tmp = bytearray()
-    emitEach(tmp, 0)
+    emit_each(tmp, 0)
     return tmp
 
 def marshal_int16(val):
     if isinstance(val, int):
         if val < 32768 and val > -32769:
-            return emitRawInt(0x10, val)
+            return emit_raw_int(0x10, val)
         else:
             raise ProtocolError('value out of range for int16')
     else:
@@ -54,7 +54,7 @@ def marshal_int16(val):
 def marshal_int32(val):
     if isinstance(val, int):
         if int(-2147483648) <= val <= int(2147483647):
-            return emitRawInt(0x10, val)
+            return emit_raw_int(0x10, val)
         else:
             raise ProtocolError('value out of range for int32')
     else:
@@ -63,7 +63,7 @@ def marshal_int32(val):
 def marshal_int64(val):
     if isinstance(val, int):
         if int(-9223372036854775808) <= val <= int(9223372036854775807):
-            return emitRawInt(0x10, val)
+            return emit_raw_int(0x10, val)
         else:
             raise ProtocolError('value out of range for int64')
     else:
@@ -71,14 +71,14 @@ def marshal_int64(val):
 
 def marshal_string(val):
     if isinstance(val, str):
-        return chain(emitRawInt(0x40, len(val)),\
+        return chain(emit_raw_int(0x40, len(val)),\
                      (ord(ii) for ii in val))
     else:
         raise ProtocolError('expected string type')
 
 def marshal_array(fn, val):
     if isinstance(val, list):
-        return chain(emitRawInt(0x50, len(val)),\
+        return chain(emit_raw_int(0x50, len(val)),\
                      chain.from_iterable((fn(v) for v in val)))
     else:
         raise ProtocolError('expected list type')
@@ -157,7 +157,7 @@ class Event_struct:
         return not self.__eq__(other)
 
 def marshal_Event_struct(val):
-    return chain(emitRawInt(0x50, 2 \
+    return chain(emit_raw_int(0x50, 2 \
                     + (2 if hasattr(val, 'state') else 0) \
                     + (2 if hasattr(val, 'clock') else 0)),
                  b'\x12\xc7\x8d',
@@ -241,56 +241,56 @@ def marshal_reply(val):
 
 # -- Internal unmarshalling routines --
 
-def consumeRawInt(ii, tag):
-    iiTag = (ii.__next__())
-    iiLen = iiTag & 0xf
-    if (iiTag & 0xf0) == (tag & 0xf0) and iiLen > 0 and iiLen <= 8:
-        firstByte = (ii.__next__())
-        retVal = (0 if (0x80 & firstByte) == 0 else -256) | firstByte
-        while iiLen > 1:
-            retVal = (retVal << 8) | (ii.__next__())
-            iiLen = iiLen - 1
-        return int(retVal)
+def consume_raw_int(ii, tag):
+    ii_tag = (ii.__next__())
+    ii_len = ii_tag & 0xf
+    if (ii_tag & 0xf0) == (tag & 0xf0) and ii_len > 0 and ii_len <= 8:
+        first_byte = (ii.__next__())
+        ret_val = (0 if (0x80 & first_byte) == 0 else -256) | first_byte
+        while ii_len > 1:
+            ret_val = (ret_val << 8) | (ii.__next__())
+            ii_len = ii_len - 1
+        return int(ret_val)
     else:
         raise ProtocolError('bad tag or length')
 
 def unmarshal_int16(ii):
-    val = consumeRawInt(ii, 0x10)
+    val = consume_raw_int(ii, 0x10)
     if val >= -0x8000 and val < 0x8000:
         return int(val)
     else:
         raise ProtocolError('value out of range for int16')
 
 def unmarshal_int32(ii):
-    val = consumeRawInt(ii, 0x10)
+    val = consume_raw_int(ii, 0x10)
     if int(-2147483648) <= val <= int(2147483647):
         return int(val)
     else:
         raise ProtocolError('value out of range for int32')
 
 def unmarshal_int64(ii):
-    val = consumeRawInt(ii, 0x10)
+    val = consume_raw_int(ii, 0x10)
     if int(-9223372036854775808) <= val <= int(9223372036854775807):
         return val
     else:
         raise ProtocolError('value out of range for int64')
 
 def unmarshal_string(ii):
-    return bytearray(islice(ii, consumeRawInt(ii, 0x40))).decode('utf-8')
+    return bytearray(islice(ii, consume_raw_int(ii, 0x40))).decode('utf-8')
 
 def unmarshal_array(ii, fn):
-    return [fn(ii) for x in range(consumeRawInt(ii, 0x50))]
+    return [fn(ii) for x in range(consume_raw_int(ii, 0x50))]
 
 def unmarshal_header(ii):
     if ii.__next__() != 83 or ii.__next__() != 68 or \
        ii.__next__() != 68 or ii.__next__() != 2 or \
-       consumeRawInt(ii, 0x50) != 3:
+       consume_raw_int(ii, 0x50) != 3:
         raise ProtocolError('invalid header')
-    elif consumeRawInt(ii, 0x10) != -940213363:
+    elif consume_raw_int(ii, 0x10) != -940213363:
         raise ProtocolError('incorrect protocol specified')
 
 def unmarshal_Clock_enum(ii):
-    val = consumeRawInt(ii, 0x80)
+    val = consume_raw_int(ii, 0x80)
     if val == 8267:
         return Clock_Tclk
     elif val == 26129:
@@ -303,13 +303,13 @@ def unmarshal_Clock_enum(ii):
         raise ProtocolError("invalid value for enum 'Clock'")
 
 def unmarshal_EvState_struct(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 4:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 4:
         raise ProtocolError('incorrect number of fields')
     else:
         tmp = EvState_struct()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 1453:
                 tmp.device_index = unmarshal_int32(ii)
             elif fld == -16032:
@@ -319,13 +319,13 @@ def unmarshal_EvState_struct(ii):
         return tmp
 
 def unmarshal_EvClock_struct(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 4:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 4:
         raise ProtocolError('incorrect number of fields')
     else:
         tmp = EvClock_struct()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 25488:
                 tmp.event = unmarshal_int16(ii)
             elif fld == 9354:
@@ -335,13 +335,13 @@ def unmarshal_EvClock_struct(ii):
         return tmp
 
 def unmarshal_Event_struct(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if (nFlds % 2) != 0 or nFlds < 2 or nFlds > 6:
+    n_flds = consume_raw_int(ii, 0x50)
+    if (n_flds % 2) != 0 or n_flds < 2 or n_flds > 6:
         raise ProtocolError('incorrect number of fields')
     else:
         tmp = Event_struct()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -14451:
                 tmp.stamp = unmarshal_int64(ii)
             elif fld == -25042:
@@ -353,13 +353,13 @@ def unmarshal_Event_struct(ii):
         return tmp
 
 def unmarshal_Discover_request(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 2:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 2:
         raise ProtocolError('incorrect number of fields')
     else:
         tmp = Discover_request()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 6937:
                 tmp.clock = unmarshal_Clock_enum(ii)
             else:
@@ -367,13 +367,13 @@ def unmarshal_Discover_request(ii):
         return tmp
 
 def unmarshal_Register_request(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 2:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 2:
         raise ProtocolError('incorrect number of fields')
     else:
         tmp = Register_request()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -26145:
                 tmp.evTclk = unmarshal_array(ii, unmarshal_string)
             else:
@@ -381,19 +381,19 @@ def unmarshal_Register_request(ii):
         return tmp
 
 def unmarshal_Instance_reply(ii):
-    if consumeRawInt(ii, 0x50) != 0:
+    if consume_raw_int(ii, 0x50) != 0:
         raise ProtocolError('incorrect number of fields')
     else:
         return Instance_reply()
 
 def unmarshal_Report_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 4:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 4:
         raise ProtocolError('incorrect number of fields')
     else:
         tmp = Report_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -15650:
                 tmp.seq = unmarshal_int16(ii)
             elif fld == -29946:
@@ -408,7 +408,7 @@ def unmarshal_request(ii):
        will be raised."""
     try:
         unmarshal_header(ii)
-        msg = consumeRawInt(ii, 0x10)
+        msg = consume_raw_int(ii, 0x10)
         if msg == -26820:
             return unmarshal_Discover_request(ii)
         elif msg == 4822:
@@ -424,7 +424,7 @@ def unmarshal_reply(ii):
        will be raised."""
     try:
         unmarshal_header(ii)
-        msg = consumeRawInt(ii, 0x10)
+        msg = consume_raw_int(ii, 0x10)
         if msg == -18639:
             return unmarshal_Instance_reply(ii)
         elif msg == -4722:

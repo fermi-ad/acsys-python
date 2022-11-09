@@ -56,18 +56,18 @@ class ProtocolError(Exception):
 
 # -- Internal marshalling routines --
 
-def emitRawInt(tag, val):
-    def emitEach(buf, n):
+def emit_raw_int(tag, val):
+    def emit_each(buf, n):
         curr = (val >> (n * 8)) & 0xff
         next = val >> ((n + 1) * 8)
         if (next == 0 and (curr & 0x80) != 0x80) or \
            (next == -1 and (curr & 0x80) == 0x80):
             buf.append(tag + n + 1)
         else:
-            emitEach(buf, n + 1)
+            emit_each(buf, n + 1)
         buf.append(curr)
     tmp = bytearray()
-    emitEach(tmp, 0)
+    emit_each(tmp, 0)
     return tmp
 
 def marshal_bool(val):
@@ -76,7 +76,7 @@ def marshal_bool(val):
 def marshal_int16(val):
     if isinstance(val, int):
         if val < 32768 and val > -32769:
-            return emitRawInt(0x10, val)
+            return emit_raw_int(0x10, val)
         else:
             raise ProtocolError("value out of range for int16")
     else:
@@ -85,7 +85,7 @@ def marshal_int16(val):
 def marshal_int32(val):
     if isinstance(val, int):
         if int(-2147483648) <= val <= int(2147483647):
-            return emitRawInt(0x10, val)
+            return emit_raw_int(0x10, val)
         else:
             raise ProtocolError("value out of range for int32")
     else:
@@ -94,7 +94,7 @@ def marshal_int32(val):
 def marshal_int64(val):
     if isinstance(val, int):
         if int(-9223372036854775808) <= val <= int(9223372036854775807):
-            return emitRawInt(0x10, val)
+            return emit_raw_int(0x10, val)
         else:
             raise ProtocolError("value out of range for int64")
     else:
@@ -105,20 +105,20 @@ def marshal_double(val):
 
 def marshal_string(val):
     if isinstance(val, str):
-        return chain(emitRawInt(0x40, len(val)),\
+        return chain(emit_raw_int(0x40, len(val)),\
                      (ord(ii) for ii in val))
     else:
         raise ProtocolError("expected string type")
 
 def marshal_binary(val):
     if isinstance(val, (bytearray, bytes)):
-        return chain(emitRawInt(0x30, len(val)), val)
+        return chain(emit_raw_int(0x30, len(val)), val)
     else:
         raise ProtocolError("expected bytearray or bytes type")
 
 def marshal_array(fn, val):
     if isinstance(val, list):
-        return chain(emitRawInt(0x50, len(val)),\
+        return chain(emit_raw_int(0x50, len(val)),\
                      chain.from_iterable((fn(v) for v in val)))
     else:
         raise ProtocolError("expected list type")
@@ -135,7 +135,7 @@ class RawSetting_struct:
     def __ne__(self, other):
         return not self.__eq__(other)
 
-def marshal_RawSetting_struct(val):
+def marshal_raw_setting_struct(val):
     return chain(b'\x51\x04\x12\x1e\xab',
                  marshal_int64(val.ref_id),
                  b'\x12\x7f\x38',
@@ -153,7 +153,7 @@ class ScaledSetting_struct:
     def __ne__(self, other):
         return not self.__eq__(other)
 
-def marshal_ScaledSetting_struct(val):
+def marshal_scaled_setting_struct(val):
     return chain(b'\x51\x04\x12\x1e\xab',
                  marshal_int64(val.ref_id),
                  b'\x12\x7f\x38',
@@ -171,7 +171,7 @@ class TextSetting_struct:
     def __ne__(self, other):
         return not self.__eq__(other)
 
-def marshal_TextSetting_struct(val):
+def marshal_text_setting_struct(val):
     return chain(b'\x51\x04\x12\x1e\xab',
                  marshal_int64(val.ref_id),
                  b'\x12\x7f\x38',
@@ -189,7 +189,7 @@ class SettingStatus_struct:
     def __ne__(self, other):
         return not self.__eq__(other)
 
-def marshal_SettingStatus_struct(val):
+def marshal_setting_status_struct(val):
     return chain(b'\x51\x04\x12\x1e\xab',
                  marshal_int64(val.ref_id),
                  b'\x12\x44\x54',
@@ -221,7 +221,7 @@ class OpenList_request:
         """Returns a generator that emits a character stream representing
            the marshaled contents of OpenList_request."""
         return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x08\x1c',
-                     emitRawInt(0x50, 0 \
+                     emit_raw_int(0x50, 0 \
                         + (2 if hasattr(self, 'location') else 0)),
                      chain(b'\x12\x9d\xe0',
                            marshal_string(self.location)) \
@@ -332,7 +332,7 @@ class StartList_request:
         """Returns a generator that emits a character stream representing
            the marshaled contents of StartList_request."""
         return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xdd\xb5',
-                     emitRawInt(0x50, 2 \
+                     emit_raw_int(0x50, 2 \
                         + (2 if hasattr(self, 'model') else 0)),
                      b'\x12\xe8\x20',
                      marshal_int32(self.list_id),
@@ -397,7 +397,7 @@ class ApplySettings_request:
         """Returns a generator that emits a character stream representing
            the marshaled contents of ApplySettings_request."""
         return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xc6\x78',
-                     emitRawInt(0x50, 4 \
+                     emit_raw_int(0x50, 4 \
                         + (2 if hasattr(self, 'raw_array') else 0) \
                         + (2 if hasattr(self, 'scaled_array') else 0) \
                         + (2 if hasattr(self, 'text_array') else 0)),
@@ -406,13 +406,13 @@ class ApplySettings_request:
                      b'\x12\xe8\x20',
                      marshal_int32(self.list_id),
                      chain(b'\x12\x03\x01',
-                           marshal_array(marshal_RawSetting_struct, self.raw_array)) \
+                           marshal_array(marshal_raw_setting_struct, self.raw_array)) \
                            if hasattr(self, 'raw_array') else b'',
                      chain(b'\x12\x63\xce',
-                           marshal_array(marshal_ScaledSetting_struct, self.scaled_array)) \
+                           marshal_array(marshal_scaled_setting_struct, self.scaled_array)) \
                            if hasattr(self, 'scaled_array') else b'',
                      chain(b'\x12\xce\x8f',
-                           marshal_array(marshal_TextSetting_struct, self.text_array)) \
+                           marshal_array(marshal_text_setting_struct, self.text_array)) \
                            if hasattr(self, 'text_array') else b'')
 
 class ServiceDiscovery_reply:
@@ -593,7 +593,7 @@ class DeviceInfo_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of DeviceInfo_reply."""
         return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x6f\xed',
-                     emitRawInt(0x50, 8 \
+                     emit_raw_int(0x50, 8 \
                         + (2 if hasattr(self, 'units') else 0) \
                         + (2 if hasattr(self, 'format_hint') else 0)),
                      b'\x12\x1e\xab',
@@ -916,7 +916,7 @@ class BasicStatus_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of BasicStatus_reply."""
         return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\xf2\xf9',
-                     emitRawInt(0x50, 6 \
+                     emit_raw_int(0x50, 6 \
                         + (2 if hasattr(self, 'on') else 0) \
                         + (2 if hasattr(self, 'ready') else 0) \
                         + (2 if hasattr(self, 'remote') else 0) \
@@ -994,7 +994,7 @@ class ApplySettings_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of ApplySettings_reply."""
         return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x43\xc0\x51\x02\x12\x44\x54',
-                     marshal_array(marshal_SettingStatus_struct, self.status))
+                     marshal_array(marshal_setting_status_struct, self.status))
 
 class Authenticate_reply:
 
@@ -1013,7 +1013,7 @@ class Authenticate_reply:
         """Returns a generator that emits a character stream representing
            the marshaled contents of Authenticate_reply."""
         return chain(b'SDD\x02\x51\x03\x14\xb1\x3a\x70\x3a\x12\x1c\x76',
-                     emitRawInt(0x50, 0 \
+                     emit_raw_int(0x50, 0 \
                         + (2 if hasattr(self, 'serviceName') else 0) \
                         + (2 if hasattr(self, 'token') else 0)),
                      chain(b'\x12\x63\x38',
@@ -1033,17 +1033,17 @@ def marshal_reply(val):
 
 from itertools import islice
 
-def consumeRawInt(it, tag):
-    itTag = it.__next__()
-    itLen = itTag & 0xf
-    if (itTag & 0xf0) == tag and itLen > 0 and itLen <= 8:
-        it = islice(it, itLen)
-        retVal = it.__next__()
-        if (0x80 & retVal) != 0:
-            retVal |= -256
+def consume_raw_int(it, tag):
+    it_tag = it.__next__()
+    it_len = it_tag & 0xf
+    if (it_tag & 0xf0) == tag and it_len > 0 and it_len <= 8:
+        it = islice(it, it_len)
+        ret_val = it.__next__()
+        if (0x80 & ret_val) != 0:
+            ret_val |= -256
         for xx in it:
-            retVal = (retVal << 8) + xx
-        return int(retVal)
+            ret_val = (ret_val << 8) + xx
+        return int(ret_val)
     else:
         raise ProtocolError("bad tag or length")
 
@@ -1057,21 +1057,21 @@ def unmarshal_bool(ii):
         raise ProtocolError("expected boolean value")
 
 def unmarshal_int16(ii):
-    val = consumeRawInt(ii, 0x10)
+    val = consume_raw_int(ii, 0x10)
     if val >= -0x8000 and val < 0x8000:
         return int(val)
     else:
         raise ProtocolError("value out of range for int16")
 
 def unmarshal_int32(ii):
-    val = consumeRawInt(ii, 0x10)
+    val = consume_raw_int(ii, 0x10)
     if int(-2147483648) <= val <= int(2147483647):
         return int(val)
     else:
         raise ProtocolError("value out of range for int32")
 
 def unmarshal_int64(ii):
-    val = consumeRawInt(ii, 0x10)
+    val = consume_raw_int(ii, 0x10)
     if int(-9223372036854775808) <= val <= int(9223372036854775807):
         return val
     else:
@@ -1088,30 +1088,30 @@ def unmarshal_double(it):
         raise ProtocolError("expected tag for double")
 
 def unmarshal_string(ii):
-    return bytes(islice(ii, consumeRawInt(ii, 0x40))).decode('utf-8')
+    return bytes(islice(ii, consume_raw_int(ii, 0x40))).decode('utf-8')
 
 def unmarshal_binary(ii):
-    return bytes(islice(ii, consumeRawInt(ii, 0x30)))
+    return bytes(islice(ii, consume_raw_int(ii, 0x30)))
 
 def unmarshal_array(ii, fn):
-    return [fn(ii) for x in range(consumeRawInt(ii, 0x50))]
+    return [fn(ii) for x in range(consume_raw_int(ii, 0x50))]
 
 def unmarshal_header(ii):
     if ii.__next__() != 83 or ii.__next__() != 68 or \
        ii.__next__() != 68 or ii.__next__() != 2 or \
-       consumeRawInt(ii, 0x50) != 3:
+       consume_raw_int(ii, 0x50) != 3:
         raise ProtocolError("invalid header")
-    elif consumeRawInt(ii, 0x10) != -1321570246:
+    elif consume_raw_int(ii, 0x10) != -1321570246:
         raise ProtocolError("incorrect protocol specified")
 
 def unmarshal_RawSetting_struct(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 4:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 4:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = RawSetting_struct()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == 32568:
@@ -1121,13 +1121,13 @@ def unmarshal_RawSetting_struct(ii):
         return tmp
 
 def unmarshal_ScaledSetting_struct(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 4:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 4:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = ScaledSetting_struct()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == 32568:
@@ -1137,13 +1137,13 @@ def unmarshal_ScaledSetting_struct(ii):
         return tmp
 
 def unmarshal_TextSetting_struct(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 4:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 4:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = TextSetting_struct()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == 32568:
@@ -1153,13 +1153,13 @@ def unmarshal_TextSetting_struct(ii):
         return tmp
 
 def unmarshal_SettingStatus_struct(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 4:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 4:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = SettingStatus_struct()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == 17492:
@@ -1169,19 +1169,19 @@ def unmarshal_SettingStatus_struct(ii):
         return tmp
 
 def unmarshal_ServiceDiscovery_request(ii):
-    if consumeRawInt(ii, 0x50) != 0:
+    if consume_raw_int(ii, 0x50) != 0:
         raise ProtocolError("incorrect number of fields")
     else:
         return ServiceDiscovery_request()
 
 def unmarshal_OpenList_request(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if (nFlds % 2) != 0 or nFlds < 0 or nFlds > 2:
+    n_flds = consume_raw_int(ii, 0x50)
+    if (n_flds % 2) != 0 or n_flds < 0 or n_flds > 2:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = OpenList_request()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -25120:
                 tmp.location = unmarshal_string(ii)
             else:
@@ -1189,13 +1189,13 @@ def unmarshal_OpenList_request(ii):
         return tmp
 
 def unmarshal_AddToList_request(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 6:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 6:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = AddToList_request()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 7851:
@@ -1207,13 +1207,13 @@ def unmarshal_AddToList_request(ii):
         return tmp
 
 def unmarshal_Authenticate_request(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 4:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 4:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = Authenticate_request()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == -29279:
@@ -1223,13 +1223,13 @@ def unmarshal_Authenticate_request(ii):
         return tmp
 
 def unmarshal_EnableSettings_request(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 6:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 6:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = EnableSettings_request()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 8141:
@@ -1241,13 +1241,13 @@ def unmarshal_EnableSettings_request(ii):
         return tmp
 
 def unmarshal_RemoveFromList_request(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 4:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 4:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = RemoveFromList_request()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 7851:
@@ -1257,13 +1257,13 @@ def unmarshal_RemoveFromList_request(ii):
         return tmp
 
 def unmarshal_StartList_request(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if (nFlds % 2) != 0 or nFlds < 2 or nFlds > 4:
+    n_flds = consume_raw_int(ii, 0x50)
+    if (n_flds % 2) != 0 or n_flds < 2 or n_flds > 4:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = StartList_request()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 24163:
@@ -1273,13 +1273,13 @@ def unmarshal_StartList_request(ii):
         return tmp
 
 def unmarshal_ClearList_request(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 2:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 2:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = ClearList_request()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             else:
@@ -1287,13 +1287,13 @@ def unmarshal_ClearList_request(ii):
         return tmp
 
 def unmarshal_StopList_request(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 2:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 2:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = StopList_request()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             else:
@@ -1301,13 +1301,13 @@ def unmarshal_StopList_request(ii):
         return tmp
 
 def unmarshal_ApplySettings_request(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if (nFlds % 2) != 0 or nFlds < 4 or nFlds > 10:
+    n_flds = consume_raw_int(ii, 0x50)
+    if (n_flds % 2) != 0 or n_flds < 4 or n_flds > 10:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = ApplySettings_request()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 22088:
                 tmp.user_name = unmarshal_string(ii)
             elif fld == -6112:
@@ -1323,13 +1323,13 @@ def unmarshal_ApplySettings_request(ii):
         return tmp
 
 def unmarshal_ServiceDiscovery_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 4:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 4:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = ServiceDiscovery_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7859:
                 tmp.load = unmarshal_int16(ii)
             elif fld == 4527:
@@ -1339,13 +1339,13 @@ def unmarshal_ServiceDiscovery_reply(ii):
         return tmp
 
 def unmarshal_OpenList_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 2:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 2:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = OpenList_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             else:
@@ -1353,13 +1353,13 @@ def unmarshal_OpenList_reply(ii):
         return tmp
 
 def unmarshal_AddToList_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 6:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 6:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = AddToList_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 7851:
@@ -1371,13 +1371,13 @@ def unmarshal_AddToList_reply(ii):
         return tmp
 
 def unmarshal_RemoveFromList_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 6:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 6:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = RemoveFromList_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 7851:
@@ -1389,13 +1389,13 @@ def unmarshal_RemoveFromList_reply(ii):
         return tmp
 
 def unmarshal_StartList_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 4:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 4:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = StartList_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 17492:
@@ -1405,13 +1405,13 @@ def unmarshal_StartList_reply(ii):
         return tmp
 
 def unmarshal_ListStatus_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 4:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 4:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = ListStatus_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == -6112:
                 tmp.list_id = unmarshal_int32(ii)
             elif fld == 17492:
@@ -1421,13 +1421,13 @@ def unmarshal_ListStatus_reply(ii):
         return tmp
 
 def unmarshal_Status_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 8:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 8:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = Status_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1441,13 +1441,13 @@ def unmarshal_Status_reply(ii):
         return tmp
 
 def unmarshal_DeviceInfo_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if (nFlds % 2) != 0 or nFlds < 8 or nFlds > 12:
+    n_flds = consume_raw_int(ii, 0x50)
+    if (n_flds % 2) != 0 or n_flds < 8 or n_flds > 12:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = DeviceInfo_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -32035:
@@ -1465,13 +1465,13 @@ def unmarshal_DeviceInfo_reply(ii):
         return tmp
 
 def unmarshal_Scalar_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 10:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 10:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = Scalar_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1487,13 +1487,13 @@ def unmarshal_Scalar_reply(ii):
         return tmp
 
 def unmarshal_ScalarArray_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 10:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 10:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = ScalarArray_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1509,13 +1509,13 @@ def unmarshal_ScalarArray_reply(ii):
         return tmp
 
 def unmarshal_Raw_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 10:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 10:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = Raw_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1531,13 +1531,13 @@ def unmarshal_Raw_reply(ii):
         return tmp
 
 def unmarshal_Text_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 10:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 10:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = Text_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1553,13 +1553,13 @@ def unmarshal_Text_reply(ii):
         return tmp
 
 def unmarshal_TextArray_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 10:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 10:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = TextArray_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1575,13 +1575,13 @@ def unmarshal_TextArray_reply(ii):
         return tmp
 
 def unmarshal_AnalogAlarm_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 22:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 22:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = AnalogAlarm_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1609,13 +1609,13 @@ def unmarshal_AnalogAlarm_reply(ii):
         return tmp
 
 def unmarshal_DigitalAlarm_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 22:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 22:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = DigitalAlarm_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1643,13 +1643,13 @@ def unmarshal_DigitalAlarm_reply(ii):
         return tmp
 
 def unmarshal_BasicStatus_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if (nFlds % 2) != 0 or nFlds < 6 or nFlds > 16:
+    n_flds = consume_raw_int(ii, 0x50)
+    if (n_flds % 2) != 0 or n_flds < 6 or n_flds > 16:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = BasicStatus_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1671,13 +1671,13 @@ def unmarshal_BasicStatus_reply(ii):
         return tmp
 
 def unmarshal_TimedScalarArray_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 12:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 12:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = TimedScalarArray_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 7851:
                 tmp.ref_id = unmarshal_int64(ii)
             elif fld == -10917:
@@ -1695,13 +1695,13 @@ def unmarshal_TimedScalarArray_reply(ii):
         return tmp
 
 def unmarshal_ApplySettings_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if nFlds != 2:
+    n_flds = consume_raw_int(ii, 0x50)
+    if n_flds != 2:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = ApplySettings_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 17492:
                 tmp.status = unmarshal_array(ii, unmarshal_SettingStatus_struct)
             else:
@@ -1709,13 +1709,13 @@ def unmarshal_ApplySettings_reply(ii):
         return tmp
 
 def unmarshal_Authenticate_reply(ii):
-    nFlds = consumeRawInt(ii, 0x50)
-    if (nFlds % 2) != 0 or nFlds < 0 or nFlds > 4:
+    n_flds = consume_raw_int(ii, 0x50)
+    if (n_flds % 2) != 0 or n_flds < 0 or n_flds > 4:
         raise ProtocolError("incorrect number of fields")
     else:
         tmp = Authenticate_reply()
-        for xx in range(nFlds // 2):
-            fld = consumeRawInt(ii, 0x10)
+        for xx in range(n_flds // 2):
+            fld = consume_raw_int(ii, 0x10)
             if fld == 25400:
                 tmp.serviceName = unmarshal_string(ii)
             elif fld == -29279:
@@ -1730,7 +1730,7 @@ def unmarshal_request(ii):
        will be raised."""
     try:
         unmarshal_header(ii)
-        msg = consumeRawInt(ii, 0x10)
+        msg = consume_raw_int(ii, 0x10)
         if msg == -8230:
             return unmarshal_ServiceDiscovery_request(ii)
         elif msg == 2076:
@@ -1762,7 +1762,7 @@ def unmarshal_reply(ii):
        will be raised."""
     try:
         unmarshal_header(ii)
-        msg = consumeRawInt(ii, 0x10)
+        msg = consume_raw_int(ii, 0x10)
         if msg == -12930:
             return unmarshal_ServiceDiscovery_reply(ii)
         elif msg == 13470:
