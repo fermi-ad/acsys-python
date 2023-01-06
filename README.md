@@ -15,7 +15,7 @@ The command above will get you up and going quickly. See usage examples in the [
 If you need to perform settings, authentication is required and thus the `gssapi` authentication library.
 
 ```bash
-python3 -m pip install acsys[settings]
+python3 -m pip install "acsys[settings]"
 ```
 
 Note: This package only authenticates you as a user. There are other requirements to be able to set devices. Please make a request to the Controls Department for setting access.
@@ -23,7 +23,7 @@ Note: This package only authenticates you as a user. There are other requirement
 If you would like to install all dependencies, use the following.
 
 ```bash
-python3 -m pip install acsys[all]
+python3 -m pip install "acsys[all]"
 ```
 
 ## Building
