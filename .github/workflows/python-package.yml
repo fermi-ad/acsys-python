@@ -20,7 +20,7 @@ jobs:
         # but do a special run for the legacy Python and OS.
         include:
           - python-version: "3.6.8"
-          - os: "ubuntu-20.04"
+            os: "ubuntu-20.04"
 
     runs-on: ${{ matrix.os }}
 
