@@ -5,6 +5,7 @@ import logging
 import getpass
 import os
 import sys
+import warnings
 import acsys.status
 from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
                                     AddToList_request, RemoveFromList_request,
@@ -37,10 +38,26 @@ ItemStatus."""
     @property
     def isReading(self):
         """Returns True if this object is an ItemData object."""
+        warnings.warn(
+            "deprecated in favor of the snake_case version, err_code",
+            DeprecationWarning)
+        return self.is_reading
+
+    @property
+    def is_reading(self):
+        """Returns True if this object is an ItemData object."""
         return False
 
     @property
     def isStatus(self):
+        """Returns True if this object is an ItemStatus object."""
+        warnings.warn(
+            "deprecated in favor of the snake_case version, is_status",
+            DeprecationWarning)
+        return self.is_status
+
+    @property
+    def is_status(self):
         """Returns True if this object is an ItemStatus object."""
         return False
 
@@ -49,9 +66,29 @@ ItemStatus."""
 field matches the parameter 'tag'.
 
         """
+        warnings.warn(
+            "deprecated in favor of the snake_case version, is_reading_for",
+            DeprecationWarning)
+        return self.is_reading_for
+
+    def is_reading_for(self, *tags):
+        """Returns True if this object is an ItemData object and its 'tag'
+field matches the parameter 'tag'.
+
+        """
         return False
 
     def isStatusFor(self, *tags):
+        """Returns True if this object is an ItemStatus object and its 'tag'
+field matches the parameter 'tag'.
+
+        """
+        warnings.warn(
+            "deprecated in favor of the snake_case version, is_status_for",
+            DeprecationWarning)
+        return self.is_status_for
+
+    def is_status_for(self, *tags):
         """Returns True if this object is an ItemStatus object and its 'tag'
 field matches the parameter 'tag'.
 
