@@ -2,6 +2,8 @@
 
 `acsys` is the interface to Fermilab data acquisition and control.
 
+_EXAMPLES:_ If you are looking for examples to dive in on, please see the [wiki examples](https://github.com/fermi-controls/acsys-python/wiki/Example-DAQ-scripts).
+
 ## Installing
 
 `acsys` is available via a Fermi hosted pip repository.
