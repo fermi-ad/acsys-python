@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Harrison"
+  given-names: "Beau"
+  orcid: "https://orcid.org/0000-0001-9555-2243"
+- family-names: "Neswold"
+  given-names: "Richard"
+  orcid: "https://orcid.org/0009-0000-1009-5910"
+title: "ACSys Python Client Library"
+version: 0.12
+date-released: 2022-03-25
+url: "https://github.com/fermi-controls/acsys-python"
