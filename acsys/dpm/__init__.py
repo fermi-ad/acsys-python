@@ -154,13 +154,20 @@ hold the engineering units of the reading.
     def micros(self):
         """Contains a list of microsecond timestamps for each datum in data.
 
-The index of each timestamp cooresponds to the same index in 'data'.
+The index of each timestamp corresponds to the same index in 'data'.
 
         """
         return self._micros
 
     @property
     def isReading(self):
+        warnings.warn(
+            "deprecated in favor of the snake_case version, is_reading",
+            DeprecationWarning)
+        return self.is_reading
+
+    @property
+    def is_reading(self):
         return True
 
     def __str__(self):
@@ -171,6 +178,12 @@ The index of each timestamp cooresponds to the same index in 'data'.
         return f'{guaranteed_fields}}}'
 
     def isReadingFor(self, *tags):
+        warnings.warn(
+            "deprecated in favor of the snake_case version, is_reading_for",
+            DeprecationWarning)
+        return self.is_reading_for(tags)
+
+    def is_reading_for(self, *tags):
         return self.tag in tags
 
 
@@ -204,12 +217,25 @@ result of a setting.
 
     @property
     def isStatus(self):
+        warnings.warn(
+            "deprecated in favor of the snake_case version, is_status",
+            DeprecationWarning)
+        return self.is_status
+
+    @property
+    def is_status(self):
         return True
 
     def __str__(self):
         return f'{{ tag: {self.tag}, status: {self.status} }}'
 
     def isStatusFor(self, *tags):
+        warnings.warn(
+            "deprecated in favor of the snake_case version, is_status_for",
+            DeprecationWarning)
+        return self.is_status_for(tags)
+
+    def is_status_for(self, *tags):
         return self.tag in tags
 
 
