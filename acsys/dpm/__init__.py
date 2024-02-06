@@ -712,6 +712,7 @@ calling this method, a few readings may still get delivered.
                 msg.token = tok
 
             _, msg = await self.con.request_reply(self.dpm_task, msg,
+                                                  timeout=5000,
                                                   proto=acsys.dpm.dpm_protocol)
 
             if isinstance(msg, Authenticate_reply):
