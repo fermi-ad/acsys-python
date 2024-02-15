@@ -11,7 +11,7 @@ setuptools.setup(
     description="ACSys Client library",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://cdcvs.fnal.gov/redmine/projects/py/wiki/Acsys",
+    url="https://github.com/fermi-ad/acsys-python",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
