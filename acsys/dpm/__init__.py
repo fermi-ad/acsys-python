@@ -181,7 +181,7 @@ The index of each timestamp corresponds to the same index in 'data'.
         warnings.warn(
             "deprecated in favor of the snake_case version, is_reading_for",
             DeprecationWarning)
-        return self.is_reading_for(tags)
+        return self.is_reading_for(*tags)
 
     def is_reading_for(self, *tags):
         return self.tag in tags
@@ -233,7 +233,7 @@ result of a setting.
         warnings.warn(
             "deprecated in favor of the snake_case version, is_status_for",
             DeprecationWarning)
-        return self.is_status_for(tags)
+        return self.is_status_for(*tags)
 
     def is_status_for(self, *tags):
         return self.tag in tags
