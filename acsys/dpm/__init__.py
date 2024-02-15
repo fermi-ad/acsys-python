@@ -69,7 +69,7 @@ field matches the parameter 'tag'.
         warnings.warn(
             "deprecated in favor of the snake_case version, is_reading_for",
             DeprecationWarning)
-        return self.is_reading_for
+        return self.is_reading_for()
 
     def is_reading_for(self, *tags):
         """Returns True if this object is an ItemData object and its 'tag'
@@ -86,7 +86,7 @@ field matches the parameter 'tag'.
         warnings.warn(
             "deprecated in favor of the snake_case version, is_status_for",
             DeprecationWarning)
-        return self.is_status_for
+        return self.is_status_for()
 
     def is_status_for(self, *tags):
         """Returns True if this object is an ItemStatus object and its 'tag'
