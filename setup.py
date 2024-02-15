@@ -5,13 +5,13 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="acsys",
-    version="0.12.7",
+    version="0.12.8",
     author="Rich Neswold",
     author_email="neswold@fnal.gov",
     description="ACSys Client library",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://cdcvs.fnal.gov/redmine/projects/py/wiki/Acsys",
+    url="https://github.com/fermi-ad/acsys-python",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
