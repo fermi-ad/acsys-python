@@ -21,10 +21,10 @@ setuptools.setup(
     install_requires=[
         'gssapi',
         'nest_asyncio',
-        'importlib-metadata; python_version < "3.8"',
+        'importlib-metadata; python_version >= "3.9"',
     ],
     extras_require={  # Optional
         'settings': ['gssapi']
     },
-    python_requires='>=3.6',
+    python_requires='>=3.9',
 )
