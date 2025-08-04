@@ -1,829 +1,196 @@
-"""This module provides access to the ACSys Control System allowing
-Python scripts to communicate with ACSys services and use ACSys
-resources. Historically, all these resources were accessed using the
-ACNET protocol. Many services are being updated to using standard
-transports and protocols. The APIs that pass around an
-`acsys.Connection` object are still using ACNET to transfer data.
+from dataclasses import dataclass
+from typing import Optional, Union, Iterable
+from python_graphql_client import GraphqlClient
 
-To use this library, your main function should be marked `async` and
-take a single parameter which will be the ACSys Connection object.
-Your function should get passed to `acsys.run_client()`.
+class ACSysApiError(Exception):
+    def __init__(self, message: str):
+        super().__init__(message)
 
-This library writes to the 'acsys' logger. Your script can configure
-the logger as it sees fit.
+# A GraphQL query to return a "one-shot" read. The list of device
+# names can only represent device information -- not sample event or
+# data logger parameters.
 
-NOTE: Due to security concerns, you cannot access the control system
-offsite unless you use Fermi's VPN.
-
-NOTE: When developing scripts, you may find it useful to put the async
-scheduler in "debug mode". How to do it and what it does is described
-here:
-
-    https://docs.python.org/3/library/asyncio-dev.html#asyncio-debug-mode
-
-
-EXAMPLE #1: Specifying your script's starting function.
-
-This simple example displays the ACSys handle that is assigned to the
-script when it connects to ACSys. It shows how to register a starting
-function and shows how it receives a Connection object you can use.
-
-    import acsys
-
-    async def main(con):
-        print(f'assigned handle: {con.handle}')
-
-    acsys.run_client(main)
-
-Your function can create as many asynchronous tasks as it wants.
-However, when the primary function returns, all other tasks will be
-stopped and your script will continue execution after the
-`acsys.run_client()` call.
-
-The Connection object provides a low-level API to ACSys. Most Python
-libraries will take this object and wrap an API around it when
-supporting a popular ACSys service (e.g. DPM, LOOKUP, etc.)
-
-
-EXAMPLE #2: Using Connection's low-level API to do node/name
-            translations.
-
-This example shows how to translate node names to and from node
-addresses using the ACSys service with which the script is associated.
-
-    import acsys
-
-    async def my_client(con):
-        # Look-up address of node CENTRA.
-
-        name = 'CENTRA'
-        addr = await con.get_addr(name)
-        print(f'node {name} has address {addr}')
-
-        # Do reverse look-up of CENTRA's address.
-
-        name = await con.get_name(addr)
-        print(f'node {addr} has name {name}')
-
-    acsys.run_client(my_client)
-
-
-EXAMPLE #3: Making a request for a single reply.
-
-This snippet shows how a request is made to another ACSys task.
-
-    import acsys
-
-    async def my_client(con):
-
-        # Send an ACSys "ping" message. This message is supported by
-        # the ACSys task on every node.
-
-        snd, msg = await con.request_reply('ACNET@CENTRA', b'\\x00\\x00')
-        snd = await con.get_name(snd)
-        print(f'reply from {snd}: {msg}')
-
-    acsys.run_client(my_client)
-
-
-EXAMPLE #4: Making simultaneous requests
-
-This snippet looks up the addresses of three ACSys nodes
-simultaneously.
-
-    import asyncio
-    import acsys
-
-    async def my_client(con):
-        results = await asyncio.gather(
-            con.get_addr('CENTRA'),
-            con.get_addr('CENTRY'),
-            con.get_addr('CLXSRV')
-        )
-
-        for ii in results:
-            print(ii)
-
-    acsys.run_client(my_client)
-
+_READ_DEVICES_ = """
+query ReadDevices ($devs: [String!]!) {
+    acceleratorData (deviceList: $devs) {
+        data {
+            timestamp
+            result {
+                ... on Scalar {
+                    scalarValue
+                }
+                ... on ScalarArray {
+                   scalarArrayValue
+                }
+                ... on Raw {
+                   rawValue
+                }
+            }
+        }
+    }
+}
 """
 
-import asyncio
-import logging
-import array
-import socket
-import struct
-import nest_asyncio
-import acsys.status as status
-from acsys.status import AcnetReplyTaskDisconnected
+@dataclass(frozen=True)
+class Reading:
+    """Holds information related to a device reading.
 
-# https://packaging.python.org/guides/single-sourcing-package-version/#single-sourcing-the-version
-try:
-    from importlib import metadata
-except ImportError:
-    # Running on pre-3.8 Python; use importlib-metadata package
-    import importlib_metadata as metadata
+    A reading consists of a timestamp and value. `timestamp` is in UTC
+    time and is seconds (and fractional seconds) since the UNIX Epoch.
+    `value` is the device value when it was sampled. It can be of any
+    type that devices can return.
 
-__version__ = metadata.version('acsys')
-__all__ = [
-    '__version__',
-    'Connection',
-]
-
-nest_asyncio.apply()
-
-_log = logging.getLogger(__name__)
-
-# This map and the two following functions define a framework which
-# decodes incoming ACK packets.
-
-_ackMap = {
-    0: lambda buf: struct.unpack('>2xHh', buf),
-    1: lambda buf: struct.unpack('>2xHhBI', buf),
-    2: lambda buf: struct.unpack('>2xHhH', buf),
-    4: lambda buf: struct.unpack('>2xHhBB', buf),
-    5: lambda buf: struct.unpack('>2xHhI', buf),
-    16: lambda buf: struct.unpack('>2xHhHI', buf)
-}
-
-
-def _throw_bug(_):
-    raise status.AcnetRequestTimeOutQueuedAtDestination()
-
-
-def _decode_ack(buf):
-    return (_ackMap.get(buf[2] * 256 + buf[3], _throw_bug))(buf)
-
-# This class defines the communication protocol between the client and
-# acnetd.
-
-
-class _AcnetdProtocol(asyncio.Protocol):
-    def __init__(self):
-        super().__init__()
-        self.transport = None
-        self.buffer = bytearray()
-        self.q_cmd = asyncio.Queue(100)
-        self._rpy_map = {}
-        self._rpy_queue = []
-
-    def __del__(self):
-        self.end()
-
-    def end(self):
-        if self.transport:
-            self.transport.close()
-            self.transport = None
-
-    def add_handler(self, reqid, handler):
-        self._rpy_map[reqid] = handler
-
-    def _get_packet(self, view):
-        if len(view) >= 4:
-            total = (view[0] << 24) + (view[1] << 16) + \
-                (view[2] << 8) + view[3]
-            if len(view) >= total + 4:
-                return (view[4:(total + 4)], view[(total + 4):])
-        return (None, view)
-
-    def pop_reqid(self, reqid):
-        items = []
-        rest = []
-        for rpy in self._rpy_queue:
-            rpy_id, _, _, _, _ = rpy
-            if rpy_id == reqid:
-                items.append(rpy)
-            else:
-                rest.append(rpy)
-        self._rpy_queue = rest
-        return items
-
-    def data_received(self, data):
-
-        # Append to buffer and determine if enough data has arrived.
-
-        self.buffer += data
-
-        pkt, rest = self._get_packet(memoryview(self.buffer))
-
-        while pkt is not None:
-            pkt_type = pkt[0] * 256 + pkt[1]
-
-            # Type 2 packets are ACKs for commands. There should
-            # always be an element in the queue when we receive an
-            # ACK.
-
-            if pkt_type == 2:
-                self.q_cmd.get_nowait().set_result(bytes(pkt))
-
-            # Type 3 packets are ACSys reply traffic.
-
-            elif pkt_type == 3:
-
-                # Split out the interesting fields of the ACSys header.
-
-                sts = pkt[5] * 256 + pkt[4]
-                if sts >= 0x8000:
-                    sts -= 0x10000
-                replier = pkt[6] * 256 + pkt[7]
-                reqid = pkt[17] * 256 + pkt[16]
-                last = (pkt[2] & 1) == 0
-                sts = status.Status.create(sts)
-
-                if sts != status.ACNET_PEND:
-
-                    # Check to see if there's a function associated
-                    # with the request ID
-
-                    func = self._rpy_map.get(reqid)
-                    if func is not None:
-                        # If bit 0 is clear, this is the last reply so
-                        # we remove the entry from the map.
-
-                        if last:
-                            del self._rpy_map[reqid]
-
-                        # Send the 3-tuple, (sender, status, message)
-                        # to the recipient.
-
-                        func((replier, sts, bytes(pkt[20:])), last)
-                    else:
-                        self._rpy_queue.append((reqid, replier, sts,
-                                                bytes(pkt[20:]), last))
-            pkt, rest = self._get_packet(rest)
-        self.buffer = bytearray(rest)
-
-    # Gets called when the transport successfully connects. We send
-    # out the RAW header to tell acnetd we're using the TCP socket in
-    # RAW mode (instead of WebSocket mode.)
-
-    def connection_made(self, transport):
-        self.transport = transport
-        self.transport.write(b'RAW\r\n\r\n')
-        _log.debug('connected to ACSys')
-
-    def connection_lost(self, exc):
-        self.end()
-        if exc is not None:
-            _log.warning('lost connection with ACSys')
-
-        # Loop through all active requests and send a message
-        # indicating the request is done.
-
-        msg = (0, AcnetReplyTaskDisconnected(), b'')
-        for _, func in self._rpy_map.items():
-            func(msg, True)
-        self._rpy_map = {}
-
-        # Send an error to all pending ACKs. The '\xde\x01' value is
-        # ACNET_DISCONNECTED.
-
-        msg = b'\x00\x00\xde\x01'
-        while not self.q_cmd.empty():
-            self.q_cmd.get_nowait().set_result(msg)
-
-    def error_received(self):
-        _log.error('ACSys socket error', exc_info=True)
-
-    async def xact(self, buf):
-        ack_fut = asyncio.get_event_loop().create_future()
-        await self.q_cmd.put(ack_fut)
-        if self.transport is not None:
-            self.transport.write(buf)
-            return _decode_ack(await ack_fut)
-
-        raise AcnetReplyTaskDisconnected()
-
-# This class manages the connection between the client and acnetd. It
-# defines the public API.
-
-
-class Connection:
-    """Manages a connection to the ACSys control system.
-
-In addition to methods that make requests, this object has
-methods that directly interact with the local ACSys service.
     """
 
-    _char_index = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ$.%0123456789'
-    _rad50_chars = array.array(
-        'B', bytes(_char_index, 'utf8'))
+    timestamp: float
+    value: float
 
-    def __init__(self):
-        """Constructor.
+# Class that interacts with the ACSys GraphQL API.
 
-Creates a disconnected instance of a Connection object. This
-instance can't be properly used until further steps are
-completed. SCRIPTS SHOULDN'T CREATE CONNECTIONS; they should
-receive a properly created one indirectly through
-`acsys.run_client()`.
+class ACSys:
+    """Interact with Fermilab's ACSys GraphQL API
 
+    This object cn be used to access accelerator information including
+    device meta-information, readings, and historical data. If proper
+    credentials are provided, it also allows control of devices.
+
+    """
+
+    def __init__(self, jwt: Optional[str] = None):
+        """Creates an instance of `ACSys`.
+
+        Arg:
+
+            jwt (str): A Javascript Web Token (JWT). How this token is
+                obtained is beyond the scope of this package. The JWT
+                holds authorization infomation for a user.
         """
-        self._raw_handle = 0
-        self.handle = None
-        self.protocol = None
 
-    def __del__(self):
-        if self.protocol is not None:
-            self.protocol.end()
+        # If the caller has a JWT, use it for all the requests.
 
-    # Convert rad50 value to a string
-
-    @staticmethod
-    def __rtoa(r50):
-        result = array.array('B', b'      ')
-        chars = Connection._rad50_chars
-
-        first_bit = r50 & 0xffff
-        second_bit = (r50 >> 16) & 0xffff
-
-        for index in range(0, 3):
-            result[int(2 - index)] = chars[int(first_bit % 40)]
-            first_bit /= 40
-            result[int(5 - index)] = chars[int(second_bit % 40)]
-            second_bit /= 40
-
-        return str.strip(result.tobytes().decode('ascii'))
-
-    # Convert a string to rad50 value
-
-    @staticmethod
-    def __ator(input_string):
-        def char_to_index(char):
-            try:
-                return Connection._char_index.index(char.upper())
-            except ValueError:
-                return 0
-
-        first_bit = 0
-        second_bit = 0
-        s_len = len(input_string)
-        for index in range(0, 6):
-            char = input_string[index] if index < s_len else ' '
-
-            if index < (6 / 2):
-                first_bit *= 40
-                first_bit += char_to_index(char)
-            else:
-                second_bit *= 40
-                second_bit += char_to_index(char)
-
-        return (second_bit << 16) | first_bit
-
-    async def _xact(self, buf):
-        if self.protocol is not None:
-            while True:
-                try:
-                    return await self.protocol.xact(buf)
-                except status.AcnetReplyTaskDisconnected:
-                    if self.protocol is not None:
-                        self.protocol = None
-                    raise
+        if jwt is None or (not isinstance(jwt, str)):
+            headers = {}
         else:
-            raise AcnetReplyTaskDisconnected()
+            headers = { 'Authorization': f"Bearer {jwt}" }
 
-    # Used to tell acnetd to cancel a specific request ID. This method
-    # doesn't return an error; if the request ID existed, it'll be
-    # gone and if it didn't, it's still gone.
+        # Create the two connections to the GraphQL service.
 
-    async def _cancel(self, reqid):
-        buf = struct.pack('>I2H2IH', 14, 1, 8, self._raw_handle, 0, reqid)
-        try:
-            await self._xact(buf)
-        except Exception:
-            pass
+        self._query = GraphqlClient(
+            endpoint="https://acsys-proxy.fnal.gov:8001/acsys",
+            headers=headers
+        )
+        self._subscription = GraphqlClient(
+            endpoint="https://acsys-proxy.fnal.gov:8001/acsys/s",
+            headers=headers
+        )
 
-    # acnetd needs to know when a client is ready to receive replies
-    # to a request. This method informs acnetd which request has been
-    # prepared.
+    # Private method to convert an item of a reading reply. It knows
+    # all the possible types that can be returned an converts them
+    # into native Python types.
 
-    async def _ack_request(self, reqid):
-        buf = struct.pack('>I2H2IH', 14, 1, 9, self._raw_handle, 0, reqid)
-        await self._xact(buf)
+    def _convertItem(item):
+        timestamp = item['timestamp']
+        result = item['result']
 
-    # Finish initializing a Connection object. The construction can't
-    # block for the CONNECT command so we have to initialize in two
-    # steps.
-
-    async def _connect(self, proto):
-
-        # Send a CONNECT command requesting an anonymous handle and
-        # get the reply. Use 'proto' directly to call '.xact()' since
-        # 'self.protocol' hasn't been assigned yet. This prevents
-        # other clients from using the Connection until we register
-        # and get a handle.
-
-        _log.debug('registering with ACSys')
-        buf = struct.pack('>I2H3IH', 18, 1, 1, self._raw_handle, 0, 0, 0)
-        res = await proto.xact(buf)
-        sts = status.Status.create(res[1])
-
-        # A good reply is a tuple with 4 elements.
-
-        if sts.is_success and len(res) == 4:
-            self.protocol = proto
-            self._raw_handle = res[3]
-            self.handle = Connection.__rtoa(res[3])
-            _log.info('connected to ACSys with handle %s', self.handle)
+        if 'scalarValue' in result:
+            value = result['scalarValue']
+        elif 'scalarArrayValue' in result:
+            value = result['scalarArrayValue']
+        elif 'rawValue' in result:
+            value = bytearray(result['rawValue'])
+        elif 'textValue' in result:
+            value = result['textValue']
+        elif 'textArrayValue' in result:
+            value = result['textArrayValue']
         else:
-            raise sts
+            value = None
 
-    @staticmethod
-    async def create():
-        proto = await _create_socket()
-        if proto is not None:
-            con = Connection()
-            try:
-                await con._connect(proto)
-                return con
-            except Exception:
-                del con
-                raise
-        else:
-            _log.error('*** unable to connect to ACSys')
-            raise AcnetReplyTaskDisconnected()
+        return Reading(timestamp = timestamp, value = value)
 
-    async def get_name(self, addr):
-        """Look-up node name.
+    # Private method to convert the entire reading reply. This is a
+    # generator function.
 
-Returns the ACSys node name associated with the ACSys node
-address, `addr`.
+    def _convertReply(reply):
+        if 'acceleratorData' in reply['data']:
+            for item in reply['data']['acceleratorData']:
+                data = item['data']
 
-        """
-        if isinstance(addr, int) and 0 <= addr <= 0x10000:
-            buf = struct.pack('>I2H2IH', 14, 1, 12, self._raw_handle, 0, addr)
-            res = await self._xact(buf)
-            sts = status.Status.create(res[1])
-
-            # A good reply is a tuple with 3 elements.
-
-            if sts.is_success and len(res) == 3:
-                return Connection.__rtoa(res[2])
-
-            raise sts
-
-        raise ValueError(
-            'addr must be in the range of a 16-bit, signed integer')
-
-    async def get_addr(self, name):
-        """Look-up node address.
-
-Returns the ACSys trunk/node node address associated with
-the ACSys node name, `name`.
-
-        """
-        if isinstance(name, str) and len(name) <= 6:
-            buf = struct.pack('>I2H3I', 16, 1, 11, self._raw_handle, 0,
-                              Connection.__ator(name))
-            res = await self._xact(buf)
-            sts = status.Status.create(res[1])
-
-            # A good reply is a tuple with 4 elements.
-
-            if sts.is_success and len(res) == 4:
-                return res[2] * 256 + res[3]
-
-            raise sts
-
-        raise ValueError(
-            'name must be a string of no more than 6 characters')
-
-    async def get_local_node(self):
-        """Return the node name associated with this connection.
-
-Python scripts and web applications gain access to the
-control system through a pool of ACNET nodes. This method
-returns which node of the pool is being used for the
-connection.
-
-        """
-        buf = struct.pack('>I2H2I', 12, 1, 13, self._raw_handle, 0)
-        res = await self._xact(buf)
-        sts = status.Status.create(res[1])
-
-        # A good reply is a tuple with 4 elements.
-
-        if sts.is_success and len(res) == 4:
-            addr = res[2] * 256 + res[3]
-            return await self.get_name(addr)
-
-        raise sts
-
-    async def _to_trunknode(self, node):
-        if isinstance(node, str):
-            return await self.get_addr(node)
-        if not isinstance(node, int):
-            raise ValueError('node should be an integer or string')
-
-        return node
-
-    async def _to_nodename(self, node):
-        if isinstance(node, int):
-            return await self.get_name(node)
-        if not isinstance(node, str):
-            raise ValueError('node should be an integer or string')
-
-        return node
-
-    async def make_canonical_taskname(self, taskname):
-        """Return an efficient form of taskname.
-
-This library uses the 'HANDLE@NODE' format to refer to
-remote tasks. The internals of ACNET actually use trunk/node
-addresses and an integer form of the handle name when
-routing messages. This means the convenient form requires a
-look-up call to the ACNET service to get the underlying
-address of the node.
-
-If few requests are made, this overhead is negligible. If
-frequent requests are made to the same task, however, the
-overhead can be avoided by converting the convenient format
-into this efficient format.
-
-        """
-
-        if isinstance(taskname, str):
-            part = taskname.split('@', 1)
-            if len(part) == 2:
-                addr = await self.get_addr(part[1])
-                return (Connection.__ator(part[0]), addr)
-
-            raise ValueError('taskname has bad format')
-
-        if isinstance(taskname, tuple) and len(taskname) == 2:
-            if isinstance(taskname[0], int):
-                if isinstance(taskname[1], int):
-                    return taskname
-
-                return (taskname[0], await self.get_addr(taskname[1]))
-
-            handle = Connection.__ator(taskname[0])
-            if isinstance(taskname[1], int):
-                return (handle, taskname[1])
-
-            return (handle, await self.get_addr(taskname[1]))
-
-        raise ValueError('invalid taskname')
-
-    async def _mk_req(self, remtsk, message, mult, proto, timeout):
-        # If a protocol module name was provided, verify the message
-        # object has a '.marshal()' method. If it does, use it to
-        # create a bytearray.
-
-        if proto is not None:
-            if hasattr(message, 'marshal'):
-                message = bytearray(message.marshal())
-            else:
-                raise ValueError(
-                    'message wasn''t created by the protocol compiler')
-
-        # Make sure the message is some sort of binary and the timeout
-        # is an integer.
-
-        if isinstance(message, (bytes, bytearray)) \
-                and isinstance(timeout, int):
-            task, node = await self.make_canonical_taskname(remtsk)
-            buf = struct.pack('>I2H3I2HI', 24 + len(message), 1, 18,
-                              self._raw_handle, 0, task, node, mult,
-                              timeout) + message
-            res = await self._xact(buf)
-            sts = status.Status.create(res[1])
-
-            # A good reply is a tuple with 3 elements. The last
-            # element will be the request ID, which is what we return
-            # to the caller.
-
-            if sts.is_success and len(res) == 3:
-                return res[2]
-
-            raise sts
-
-        raise ValueError('message must be a binary')
-
-    async def request_reply(
-        self,
-        remtsk,
-        message,
-        *,
-        proto=None,
-        timeout=1000
-    ):
-        """Requests a single reply from an ACSys task.
-
-This function sends a request to an ACSys task and returns a
-future which will be resolved with the reply. The reply is a
-2-tuple where the first element is the trunk/node address of
-the sender and the second is the reply data.
-
-The ACSys status will always be good (i.e. success or
-warning); receiving a fatal status results in the future
-throwing an exception.
-
-'remtsk' is a string representing the remote ACSys task in
-the format "TASKNAME@NODENAME".
-
-'message' is either a bytes type, or a type that's an
-acceptable value for a protocol (specified by the 'proto'
-parameter.)
-
-'proto' is an optional, named parameter. If omitted, the
-message must be a bytes type. If specified, it should be the
-name of a module generated by the Protocol Compiler.
-
-'timeout' is an optional field which sets the timeout for
-the request. If the reply doesn't arrive in time, an
-ACNET_UTIME status will be raised.
-
-If the message is in an incorrect format or the timeout
-parameter isn't an integer, ValueError is raised.
-
-        """
-        def process_reply(reply):
-            assert isinstance(reply, tuple) and len(reply) == 3
-
-            replier, sts, data = reply
-            if not sts.is_fatal:
-                if (proto is not None) and len(data) > 0:
-                    data = proto.unmarshal_reply(iter(data))
-                return (replier, data)
-
-            raise sts
-
-        reqid = await self._mk_req(remtsk, message, 0, proto, timeout)
-
-        # Save the handler in the map and return the future. BTW, we
-        # don't have to test for the validity of 'self.protocol' here
-        # because, to reach this point, the previous call to
-        # `._mk_req` didn't throw an exception (which it would have if
-        # `self.protocol` was None.
-
-        replies = self.protocol.pop_reqid(reqid)
-        if len(replies) == 0:
-
-            # Create a future which will eventually resolve to the
-            # reply.
-
-            loop = asyncio.get_event_loop()
-            rpy_fut = loop.create_future()
-
-            # Define a function we can use to stuff the future with
-            # the reply. If the status is fatal, this function will
-            # resolve the future with an exception. Otherwise the
-            # reply message is set as the result.
-
-            def reply_handler(reply, _):
-                try:
-                    rpy_fut.set_result(process_reply(reply))
-                except Exception as exception:
-                    rpy_fut.set_exception(exception)
-
-            self.protocol.add_handler(reqid, reply_handler)
-            return await rpy_fut
-
-        _, replier, sts, msg, _ = replies[0]
-        return process_reply((replier, sts, msg))
-
-    async def request_stream(
-        self,
-        remtsk,
-        message,
-        *,
-        proto=None,
-        timeout=1000
-    ):
-        """Requests a stream of replies from an ACSys task.
-
-This function sends a request to an ACSys task and returns
-an async generator which returns the stream of replies. Each
-reply is a 2-tuple where the first element is the trunk/node
-address of the sender and the second is the reply data.
-
-The ACSys status in each reply will always be good (i.e.
-success or warning); receiving a fatal status results in the
-generator throwing an exception.
-
-'remtsk' is a string representing the remote ACSys task in
-the format "TASKNAME@NODENAME".
-
-'message' is either a bytes type, or a type that's an
-acceptable value for a protocol (specified by the 'proto'
-parameter.)
-
-'proto' is an optional, named parameter. If omitted, the
-message must be a bytes type. If specified, it should be the
-name of a module generated by the Protocol Compiler.
-
-'timeout' is an optional field which sets the timeout
-between each reply.  If any reply doesn't arrive in time, an
-ACNET_UTIME status will be raised.
-
-If the message is in an incorrect format or the timeout
-parameter isn't an integer, ValueError is raised.
-
-        """
-        try:
-            reqid = await self._mk_req(remtsk, message, 1, proto, timeout)
-            rpy_q = asyncio.Queue()
-
-            def handler(rpy, last):
-                replier, sts, msg = rpy
-                rpy_q.put_nowait((replier, sts, msg, last))
-
-            # Pre-stuff the queue with replies that may already have
-            # arrived. BTW, we don't have to test for the validity of
-            # 'self.protocol' here because, to reach this point, the
-            # previous call to `._mk_req` didn't throw an exception
-            # (which it would have if `self.protocol` was None.
-
-            for _, snd, sts, pkt, last in self.protocol.pop_reqid(reqid):
-                handler((snd, sts, pkt), last)
-
-            # Save the handler in the map.
-
-            self.protocol.add_handler(reqid, handler)
-            await self._ack_request(reqid)
-
-            # This section implements the async generator.
-
-            done = False
-            while not done:
-                snd, sts, msg, done = await rpy_q.get()
-                if not sts.is_fatal:
-                    if (proto is not None) and len(msg) > 0:
-                        msg = proto.unmarshal_reply(iter(msg))
-                    yield (snd, msg)
+                if len(data) == 1:
+                    yield ACSys._convertItem(data[0])
+                elif len(data) > 1:
+                    yield [ACSys._convertItem(point) for point in data]
                 else:
-                    raise sts
-        finally:
-            # If this generator exits for any reason, cancel the
-            # associated request.
+                    yield None
+        else:
+            raise ACSysApiError(message=reply['error'])
 
-            if not done:
-                _log.debug('canceling request %d', reqid)
-                loop = asyncio.get_event_loop()
-                loop.run_until_complete(self._cancel(reqid))
+    # Method that does a "one-shot" on a set of devices.
 
-    async def ping(self, node):
-        """Pings an ACSys node.
+    def readDevices(self, devices: Union[str, Iterable[str]]) -> Union[Reading, tuple[Reading, ...]]:
+        """Return the current reading for one or more devices.
 
-Uses the Level2 protocol to perform an ACSys ping request.
-Returns True if the node responded or False if it didn't. A
-node is given 1/4 second to respond. If the Connection has
-problems, this method will raise an ACSys Status code.
+        This function returns the latest reading for the specified
+        devices. `devices` can be a list, a tuple, or an iterator of
+        strings. If `devices` is a string, it specifies a single
+        device to read.
+
+        Each element of `devices` is a "device specification" as
+        defined in the DRF spec. Only the device portion of DRF is
+        used -- no event or data logger specification is allowed. This
+        means you can use the array notation for array devices, you
+        can specify different properties (used by ACNET devices), use
+        PV names (for EPICS devices), and use field names.
+
+        Examples:
+
+            acsys = ACSys()
+
+            # Read outdoor temperature
+
+            temp = acsys.readDevices("M:OUTTMP")
+            print(f"{temp.timestamp} : {temp.value} F")
+
+            # Read all elements of Z:CUBE
+
+            cube = acsys.readDevices("Z:CUBE[]")
+            print(f"{cube.timestamp} : {cube.value}")
+
+            # Read both with one request (much more efficient than
+            # making separate requests!)
+
+            (temp, cube) = acsys.readDevices(("M:OUTTMP", "Z:CUBE[]"))
+
+        Arg:
+            devices: A list of strings or a single string, each
+                representing a device specification.
+
+        Returns:
+            tuple: A tuple containing the readings. The size of the
+                tuple will match the number of device specifications.
+                If there is only one device, it returns the reading
+                instead of 1-tuple.
 
         """
-        node = await self._to_nodename(node)
-        try:
-            await self.request_reply(f'ACNET@{node}', b'\x00\x00', timeout=250)
-            return True
-        except status.AcnetRequestTimeOutQueuedAtDestination:
-            return False
 
+        # If the parameter is a string, we need to wrap it in a
+        # list. Strings are iterable so, if we don't do this, we end
+        # up with an iterator yielding device names consisting of
+        # single characters. This is not what the user wants.
 
-async def _create_socket():
-    try:
-        acsys_socket = socket.create_connection(('acsys-proxy.fnal.gov', 6802), 0.25)
-    except socket.timeout:
-        _log.warning('timeout connecting to ACSys')
-        return None
-    else:
-        loop = asyncio.get_event_loop()
-        _log.debug('creating ACSys transport')
-        _, proto = await loop.create_connection(_AcnetdProtocol, sock=acsys_socket)
-        return proto
+        if isinstance(devices, str):
+            devices = [devices]
 
+        # Perform the query and process the results.
 
-async def __client_main(main, **kwargs):
-    con = await Connection.create()
-    try:
-        await main(con, **kwargs)
-    finally:
-        del con
+        reply = self._query.execute(
+            query=_READ_DEVICES_,
+            variables={ "devs": list(devices) }
+        )
+        result = tuple(ACSys._convertReply(reply))
 
+        # Don't return a 1-tuple.
 
-def run_client(main, **kwargs):
-    """Starts an asynchronous session for ACSys clients.
-
-This function starts up an ACSys session. The parameter,
-`main`, is an async function with the signature:
-
-    async def main(con, **kwargs):
-
-This function will be passed `con` -- a fully initialized
-`Connection` object. It will also get passed `kwargs`.
-
-When 'main()' resolves, `run_client()` will return the value
-returned by `main()`.
-
-    """
-    loop = asyncio.get_event_loop()
-    client_fut = asyncio.Task(__client_main(main, **kwargs))
-    try:
-        loop.run_until_complete(client_fut)
-    except Exception:
-        client_fut.cancel()
-        try:
-            loop.run_until_complete(client_fut)
-        except Exception:
-            pass
-        raise
+        if len(result) == 1:
+            return result[0]
+        else:
+            return result
