@@ -1,5 +1,5 @@
 build :: clean
-	python3 setup.py sdist
+	$(VIRTUAL_ENV)/bin/python3 -m build --sdist --wheel
 
 deploy : build
 	scp dist/* chablis:/usr/local/www/data/pip3/acsys/
