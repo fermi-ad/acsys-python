@@ -57,21 +57,27 @@ make all
 
 The above will generate "built distributions" as well as the source distributions from `make`.
 
-## Deploying
+## Releasing a New Version
 
-```bash
-make deploy
-```
+### Set the new version
 
-The above will generate the distributions and push them to the AD Controls pip server.
-
-Make sure to use git to tag the version.
+Ensure all your changes are committed to Git. Create a new Git tag for the version you are releasing. The tag name should follow the semver format `vX.Y.Z`.
 
 ```bash
 git tag vVID
 ```
 
-And push the tags.
+### Deploy the distributions
+
+Run the `deploy` make target to build the package and push it to the pip server. This process will automatically use the new version from your Git tag.
+
+```bash
+make deploy
+```
+
+### Push the tags
+
+Finally, push the new tag to the remote repository. This makes the new version official in your project's history.
 
 ```bash
 git push --tags
