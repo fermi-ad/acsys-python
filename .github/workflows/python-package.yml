@@ -14,13 +14,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.7", "3.8", "3.9", "3.10"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
         os: ["ubuntu-latest"]
         # This weird hack allows us to use the matrix notation
         # but do a special run for the legacy Python and OS.
+        # This is the version bundled in AlmaLinux release 9.6
         include:
-          - python-version: "3.6.8"
-            os: "ubuntu-20.04"
+          - python-version: "3.9.21"
+            os: "ubuntu-latest"
 
     runs-on: ${{ matrix.os }}
 
