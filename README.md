@@ -14,23 +14,34 @@ python3 -m pip install acsys --extra-index-url https://www-bd.fnal.gov/pip3
 
 The command above will get you up and going quickly. See usage examples in the [wiki](https://github.com/fermi-controls/acsys-python/wiki).
 
-If you need to perform settings, authentication is required and thus the `gssapi` authentication library.
+If you need to perform settings, you will need the optional authentication library, `gssapi`.
 
 ```bash
-python3 -m pip install "acsys[settings]"
+python3 -m pip install "acsys[settings]" --extra-index-url https://www-bd.fnal.gov/pip3
 ```
 
 Note: This package only authenticates you as a user. There are other requirements to be able to set devices. Please make a request to the Controls Department for setting access.
 
-If you would like to install all dependencies, use the following.
+## Building and Distributing
+
+All dependencies are managed via pyproject.toml.
+
+Start by creating and activating a virtual environment.
 
 ```bash
-python3 -m pip install "acsys[all]"
+python3 -m venv venv
+source ./venv/bin/activate
 ```
 
-## Building
+To build the project, ensure you have your development dependencies installed.
 
-Make sure `setup.py` has the correct version number.
+```bash
+pip install -e ".[dev]"
+```
+
+This command installs your project in an editable mode along with all its development dependencies, like `build` and `wheel`.
+
+Make sure `pyproject.toml` has the correct version number.
 
 ```bash
 make
@@ -68,12 +79,4 @@ git push --tags
 
 ## Development
 
-Start by installing development dependencies.
-
-```bash
-pip install -r requirements.txt
-```
-
-To test local modifications, use pip's editable mode.
-
-`pip install -e .`
+To get started with development, simply follow the "Building and Distributing" section. The `pip install -e ".[dev]"` command will set up your virtual environment so that any changes you make to the source code will be immediately reflected in your `venv`.
