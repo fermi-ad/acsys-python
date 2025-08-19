@@ -21,7 +21,7 @@ jobs:
         # This is the version bundled in AlmaLinux release 9.6
         include:
           - python-version: "3.9.21"
-            os: "ubuntu-20.04"
+            os: "ubuntu-latest"
 
     runs-on: ${{ matrix.os }}
 
