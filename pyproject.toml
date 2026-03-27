@@ -20,6 +20,7 @@ classifiers = [
 ]
 dependencies = [
     "nest_asyncio",
+    "aiohttp>=3.13.3",
 ]
 
 [project.optional-dependencies]

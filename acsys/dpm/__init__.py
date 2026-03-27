@@ -1,25 +1,11 @@
 import datetime
 import asyncio
 import importlib
+import json
 import logging
-import getpass
-import os
 import sys
 import warnings
 import acsys.status
-from acsys.dpm.dpm_protocol import (ServiceDiscovery_request, OpenList_request,
-                                    AddToList_request, RemoveFromList_request,
-                                    StartList_request, StopList_request,
-                                    ClearList_request, RawSetting_struct,
-                                    TextSetting_struct, ScaledSetting_struct,
-                                    ApplySettings_request, Status_reply,
-                                    AnalogAlarm_reply, BasicStatus_reply,
-                                    DigitalAlarm_reply, DeviceInfo_reply,
-                                    Raw_reply, ScalarArray_reply, Scalar_reply,
-                                    TextArray_reply, Text_reply,
-                                    ListStatus_reply, ApplySettings_reply,
-                                    Authenticate_request, EnableSettings_request,
-                                    TimedScalarArray_reply, Authenticate_reply)
 
 _log = logging.getLogger(__name__)
 
@@ -240,629 +226,493 @@ result of a setting.
 
 
 async def find_dpm(con, *, node=None):
-    """Use Service Discovery to find an available DPM.
+    """Return None – DPM node discovery is not needed with the GraphQL backend.
 
-Multicasts a discovery message to find the next available DPM. The
-first responder's node name is returned. If no DPMs are running or an
-error occurred while querying, None is returned.
+This function is kept for backward compatibility.  The GraphQL API
+provides a unified endpoint and does not require discovering individual
+DPM nodes.
 
     """
-
-    # The "(node or 'MCAST')" expression is very similar to ternary
-    # operators in other languages. If 'node' is None, it is treated
-    # as False in the expression so the result is the second operand
-    # (i.e. 'MCAST'.) If 'node' is not None, then the expression is
-    # equal to it.
-    #
-    # In other words, if the optional 'node' parameter isn't
-    # specified, the task is 'DPMD@MCAST'. If it is specified, the
-    # task is ('DPMD@' + node).
-
-    task = 'DPMD@' + (node or 'MCAST')
-    msg = ServiceDiscovery_request()
-    try:
-        replier, _ = await con.request_reply(task, msg, timeout=150,
-                                             proto=acsys.dpm.dpm_protocol)
-        return (await con.get_name(replier))
-    except acsys.status.Status as e:
-        # An ACNET UTIME status is what we receive when no replies
-        # have been received in 150ms. This is a valid status (i.e. no
-        # DPMs are running), so we consume it and return 'None'.
-        # Other fatal errors percolate up.
-
-        if e != acsys.status.ACNET_UTIME:
-            raise
-        return None
+    return None
 
 
 async def available_dpms(con):
-    """Find active DPMs.
+    """Return an empty list – DPM discovery is not needed with the GraphQL backend.
 
-This function returns a list of available DPM nodes. If no DPMs are
-running, the list will be empty.
+This function is kept for backward compatibility.  The GraphQL API
+provides a unified endpoint and does not require discovering individual
+DPM nodes.
 
     """
-    result = []
-    msg = ServiceDiscovery_request()
-    gen = con.request_stream(
-        'DPMD@MCAST', msg, proto=acsys.dpm.dpm_protocol, timeout=150)
-    try:
-        async for replier, _ in gen:
-            result.append(await con.get_name(replier))
-    except acsys.status.Status as e:
-        # An ACNET UTIME status is what we receive when no replies
-        # have been received in 150ms. This is a valid status (i.e.
-        # all DPMs have already responded), so we consume it. Other
-        # fatal errors percolate up.
+    return []
 
-        if e != acsys.status.ACNET_UTIME:
-            raise
-    return result
+
+# ---------------------------------------------------------------------------
+# GraphQL subscription query used by the DPM class.
+# ---------------------------------------------------------------------------
+
+_SUBSCRIPTION_QUERY = """
+subscription AcceleratorData($drfs: [String!]!) {
+  acceleratorData(drfs: $drfs) {
+    refId
+    data {
+      timestamp
+      result {
+        __typename
+        ... on Scalar { scalarValue }
+        ... on ScalarArray { scalarArrayValue }
+        ... on StatusReply { status }
+        ... on Raw { rawValue }
+        ... on Text { textValue }
+        ... on TextArray { textArrayValue }
+      }
+    }
+  }
+}
+"""
+
+# GraphQL mutation used when applying settings.
+_MUTATION_SET_DEVICE = """
+mutation SetDevice($device: String!, $value: DevValue!) {
+  _setDevice(device: $device, value: $value) {
+    status
+  }
+}
+"""
 
 
 class DPM:
-    def __init__(self, con, node):
-        # These properties can be accessed without owning '_state_sem'
-        # because they're either constant or they're not manipulated
-        # across 'await' statements.
+    """Manages data acquisition from the ACSys control system via GraphQL.
 
-        self.desired_node = node or 'MCAST'
+This class replaces the legacy ACNET/DPM protocol with GraphQL
+WebSocket subscriptions, while preserving the same public API.
+
+Usage example::
+
+    async with acsys.dpm.DPMContext(con) as dpm:
+        await dpm.add_entry(0, 'Z:BTE200MUON4@i')
+        await dpm.start()
+        async for item in dpm.replies():
+            if item.is_reading:
+                print(f'{item.tag}: {item.data}')
+
+    """
+
+    def __init__(self, con, node=None):
         self.con = con
         self.meta = {}
 
-        self._state_sem = asyncio.Semaphore()
-
-        # When accessing these properties, '_state_sem' must be owned.
-
-        self.dpm_task = None
-        self.dpm_cancel = None
-        self.list_id = None
-        self._dev_list = {}
-        self._qrpy = []
-        self.gen = None
+        # Public, kept for backward compatibility.
+        self.list_id = 0
         self.active = False
         self.can_set = False
         self.model = None
 
-        # Check to see if we're running the script in debug mode. If
-        # so, stretch the timeout for ACNET requests to 30 seconds.
+        # Internal state.
+        self._dev_list = {}   # tag (int) -> drf (str)
+        self._rpy_q = asyncio.Queue()
+        self._sub_task = None
 
-        if asyncio.get_event_loop().get_debug():
-            self.req_tmo = 30000
-        else:
-            self.req_tmo = 1000
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
 
-    def _xlat_reply(self, msg):
-        if isinstance(msg, Status_reply):
-            return ItemStatus(msg.ref_id, msg.status)
-        if isinstance(msg, (AnalogAlarm_reply,
-                            DigitalAlarm_reply,
-                            BasicStatus_reply)):
-            return ItemData(msg.ref_id, msg.timestamp, msg.__dict__,
-                            meta=self.meta.get(msg.ref_id, {}))
-        if isinstance(msg, (Raw_reply,
-                            ScalarArray_reply,
-                            Scalar_reply,
-                            TextArray_reply,
-                            Text_reply)):
-            return ItemData(msg.ref_id, msg.timestamp, msg.data,
-                            meta=self.meta.get(msg.ref_id, {}))
-        if isinstance(msg, ApplySettings_reply):
-            for reply in msg.status:
-                self._qrpy.append(ItemStatus(reply.ref_id, reply.status))
-            return self._qrpy.pop(0) if len(self._qrpy) > 0 else None
-        if isinstance(msg, ListStatus_reply):
-            return None
-        if isinstance(msg, DeviceInfo_reply):
-            self.meta[msg.ref_id] = \
-                {'di': msg.di, 'name': msg.name,
-                 'desc': msg.description,
-                 'units': msg.units if hasattr(msg, 'units') else None,
-                 'format_hint': msg.format_hint if hasattr(msg, 'format_hint') else None}
-            return None
-        if isinstance(msg, TimedScalarArray_reply):
-            return ItemData(msg.ref_id, msg.timestamp, msg.data,
-                            meta=self.meta.get(msg.ref_id, {}),
-                            micros=msg.micros)
-        return msg
+    def _xlat_graphql(self, tag, data_info):
+        """Translate one GraphQL DataInfo dict into an ItemData or ItemStatus."""
+        # GraphQL timestamps are seconds since epoch (float).  ItemData
+        # expects milliseconds.
+        stamp_ms = data_info['timestamp'] * 1000.0
+        result = data_info['result']
+        typename = result.get('__typename')
+
+        if typename == 'StatusReply':
+            return ItemStatus(tag, result['status'])
+        if typename == 'Scalar':
+            return ItemData(tag, stamp_ms, result['scalarValue'],
+                            meta=self.meta.get(tag, {}))
+        if typename == 'ScalarArray':
+            return ItemData(tag, stamp_ms, result['scalarArrayValue'],
+                            meta=self.meta.get(tag, {}))
+        if typename == 'Raw':
+            return ItemData(tag, stamp_ms, bytes(result['rawValue']),
+                            meta=self.meta.get(tag, {}))
+        if typename == 'Text':
+            return ItemData(tag, stamp_ms, result['textValue'],
+                            meta=self.meta.get(tag, {}))
+        if typename == 'TextArray':
+            return ItemData(tag, stamp_ms, result['textArrayValue'],
+                            meta=self.meta.get(tag, {}))
+        _log.warning('unknown GraphQL data type: %s', typename)
+        return None
+
+    async def _run_subscription(self, drfs, ref_id_to_tag):
+        """Long-running task: subscribe via WebSocket and push items into
+        the reply queue."""
+        import aiohttp
+
+        url = self.con.ws_url + '/acsys/s'
+        headers = {}
+        if self.con.token:
+            headers['Authorization'] = f'Bearer {self.con.token}'
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.ws_connect(
+                    url,
+                    protocols=['graphql-transport-ws'],
+                    headers=headers,
+                ) as ws:
+                    # 1. Initialise the graphql-transport-ws session.
+                    await ws.send_str(json.dumps({
+                        'type': 'connection_init',
+                        'payload': {}
+                    }))
+
+                    msg_raw = await ws.receive()
+                    if msg_raw.type != aiohttp.WSMsgType.TEXT:
+                        raise ConnectionError(
+                            f'unexpected WebSocket message type: {msg_raw.type}')
+                    msg = json.loads(msg_raw.data)
+                    if msg.get('type') != 'connection_ack':
+                        raise ConnectionError(
+                            f'expected connection_ack, got {msg.get("type")!r}')
+
+                    # 2. Subscribe to acceleratorData.
+                    await ws.send_str(json.dumps({
+                        'type': 'subscribe',
+                        'id': '1',
+                        'payload': {
+                            'query': _SUBSCRIPTION_QUERY,
+                            'variables': {'drfs': drfs}
+                        }
+                    }))
+
+                    # 3. Receive a continuous stream of data.
+                    while True:
+                        msg_raw = await ws.receive()
+
+                        if msg_raw.type == aiohttp.WSMsgType.TEXT:
+                            msg = json.loads(msg_raw.data)
+                            msg_type = msg.get('type')
+
+                            if msg_type == 'next':
+                                reply = msg['payload']['data']['acceleratorData']
+                                ref_id = reply['refId']
+                                tag = ref_id_to_tag.get(ref_id)
+                                if tag is not None:
+                                    for data_info in reply['data']:
+                                        item = self._xlat_graphql(tag, data_info)
+                                        if item is not None:
+                                            await self._rpy_q.put(item)
+
+                            elif msg_type == 'ping':
+                                # Respond to server keep-alive pings.
+                                await ws.send_str(json.dumps({'type': 'pong'}))
+
+                            elif msg_type == 'complete':
+                                break
+
+                            elif msg_type == 'error':
+                                errors = msg.get('payload') or []
+                                err_msg = (errors[0].get('message', 'subscription error')
+                                           if errors else 'subscription error')
+                                raise RuntimeError(err_msg)
+
+                        elif msg_raw.type in (
+                            aiohttp.WSMsgType.CLOSE,
+                            aiohttp.WSMsgType.CLOSING,
+                            aiohttp.WSMsgType.CLOSED,
+                            aiohttp.WSMsgType.ERROR,
+                        ):
+                            break
+
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            _log.error('DPM subscription error: %s', e, exc_info=True)
+            await self._rpy_q.put(e)
+        finally:
+            # Signal end-of-stream.
+            await self._rpy_q.put(None)
+
+    async def _stop_subscription(self):
+        """Cancel the running subscription task and wait for it to finish."""
+        if self._sub_task is not None and not self._sub_task.done():
+            self._sub_task.cancel()
+            try:
+                await self._sub_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self._sub_task = None
+
+    def _drain_queue(self):
+        """Discard any queued items (called when restarting acquisition)."""
+        while not self._rpy_q.empty():
+            try:
+                self._rpy_q.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
+    # ------------------------------------------------------------------
+    # Public API – iteration
+    # ------------------------------------------------------------------
 
     def __aiter__(self):
         return self
 
     async def __anext__(self):
-        while True:
-            try:
-                if len(self._qrpy) > 0:
-                    return self._qrpy.pop(0)
-
-                _, msg = await self.gen.__anext__()
-                msg = self._xlat_reply(msg)
-
-                # If the message is not None, return it. If it is
-                # None, start at the top of the loop.
-
-                if msg is not None:
-                    return msg
-                continue
-
-            except acsys.status.Status as e:
-
-                # If we're disconnected from ACNET, re-throw the
-                # exception because there's more work to be done to
-                # restore the state of the program.
-
-                if e == acsys.status.ACNET_DISCONNECTED:
-                    raise
-
-            # If we've reached here, DPM returned a fatal ACNET
-            # status. Whatever it was, we need to pick another DPM and
-            # add all the current requests.
-
-            _log.warning('DPM(id: %s) connection closed ... retrying',
-                         str(self.list_id))
-            await self._restore_state()
+        """Return the next reply, or raise StopAsyncIteration at end of stream."""
+        item = await self._rpy_q.get()
+        if item is None:
+            raise StopAsyncIteration
+        if isinstance(item, BaseException):
+            raise item
+        return item
 
     async def replies(self, tmo=None):
-        """Returns an async generator which yields each reply from DPM. The
-optional `tmo` parameter indicates how long to wait between replies
-before an `asyncio.TimeoutError` is raised.
+        """Return an async generator that yields each reply from DPM.
 
-This method is the preferred way to iterate over DPM replies.
+The optional *tmo* parameter is the maximum number of seconds to wait
+between replies before raising :exc:`asyncio.TimeoutError`.
 
         """
         while True:
-            ii = await asyncio.wait_for(self.__anext__(), tmo)
+            try:
+                ii = await asyncio.wait_for(self.__anext__(), tmo)
+            except StopAsyncIteration:
+                return
             if ii is None:
                 return
             yield ii
 
-    async def _restore_state(self):
-        async with self._state_sem as lock:
-            await self._connect(lock)
-            self._qrpy = []
-            if self.can_set:
-                self.enable_settings()
-            await self._add_entries(lock, list(self._dev_list.items()))
-            if self.active:
-                await self.start(self.model)
-
-    async def _find_dpm(self):
-        dpm = await find_dpm(self.con, node=self.desired_node)
-
-        if dpm is not None:
-            task = 'DPMD@' + dpm
-            self.dpm_task = await self.con.make_canonical_taskname(task)
-            _log.info('using DPM task: %s', task)
-        else:
-            self.dpm_task = None
-
-    async def _connect(self, lock):
-        await self._find_dpm()
-
-        # Send an OPEN LIST request to the DPM.
-
-        loop = asyncio.get_running_loop()
-        dpm_cancel = loop.create_future()
-        gen = self.con.request_stream(self.dpm_task, OpenList_request(),
-                                      timeout=self.req_tmo,
-                                      proto=acsys.dpm.dpm_protocol,
-                                      done_fut=dpm_cancel)
-        _, msg = await gen.asend(None)
-        _log.info('DPM returned list id %d', msg.list_id)
-
-        # Update object state.
-
-        self.gen = gen
-        self.dpm_cancel = dpm_cancel
-        self.list_id = msg.list_id
-        await self._add_to_list(lock, 0, f'#USER:{getpass.getuser()}')
-        await self._add_to_list(lock, 0, f'#PID:{os.getpid()}')
-        await self._add_to_list(lock, 0, '#TYPE:Python3')
+    # ------------------------------------------------------------------
+    # Public API – list management
+    # ------------------------------------------------------------------
 
     def get_entry(self, tag):
-        """Returns the DRF string associated with the 'tag'.
-        """
-        self._dev_list.get(tag)
-
-    async def _request(self, msg):
-        _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                              proto=acsys.dpm.dpm_protocol)
-        sts = acsys.status.Status(msg.status)
-
-        if not sts.isFatal:
-            return msg
-
-        raise sts
+        """Return the DRF string associated with *tag*, or ``None``."""
+        return self._dev_list.get(tag)
 
     async def clear_list(self):
-        """Clears all entries in the tag/drf dictionary.
+        """Remove all entries from the device list.
 
-Clearing the list doesn't stop incoming replies. After clearing the
-list, either '.stop()' or '.start()' needs to be called.
+Clearing the list does not stop incoming replies.  After clearing,
+call :meth:`start` or :meth:`stop`.
 
         """
-
-        msg = ClearList_request()
-
-        async with self._state_sem:
-            _log.debug('DPM(id: %d) clearing list', self.list_id)
-            msg.list_id = self.list_id
-            await self._request(msg)
-
-            # DPM has been updated so we can safely clear the dictionary.
-
-            self._dev_list = {}
-
-    async def _add_to_list(self, lock, tag, drf):
-        msg = AddToList_request()
-
-        msg.list_id = self.list_id
-        msg.ref_id = tag
-        msg.drf_request = drf
-
-        # Perform the request. If the request returns a fatal error,
-        # the status will be raised for us. If the DPM returns a fatal
-        # status in the reply message, we raise it ourselves.
-
-        _log.debug('DPM(id: %d) adding tag:%d, drf:%s', self.list_id, tag, drf)
-        await self._request(msg)
-
-        # DPM has been updated so we can safely add the entry to our
-        # device list.
-
-        if drf[0] != "#":
-            self._dev_list[tag] = drf
+        _log.debug('clearing device list')
+        self._dev_list = {}
 
     async def add_entry(self, tag, drf):
-        """Add an entry to the list of devices to be acquired.
+        """Add a device to the acquisition list.
 
-This updates the list of device requests. The 'tag' parameter is used
-to mark this request's device data. When the script starts receiving
-ItemData objects, it can correlate the data using the 'tag' field. The
-'tag' must be an integer -- the method will raise a ValueError if it's
-not.
+*tag* is a user-supplied integer that identifies this device in
+subsequent :class:`ItemData` and :class:`ItemStatus` objects.
+*drf* is a DRF2 string describing the device and how it should be
+read (e.g. ``'Z:BTE200MUON4@i'``).
 
-The 'drf' parameter is a DRF2 string representing the data to be read
-along with the sampling event. If it isn't a string, ValueError will
-be raised.
-
-If this method is called with a tag that was previously used, it
-replaces the previous request. If data is currently being returned, it
-won't reflect the new entry until the 'start' method is called.
-
-If simultaneous calls are made to this method and all are using the
-same 'tag', which 'drf' string is ultimately associated with the tag
-is non-deterministic.
+Changes take effect the next time :meth:`start` is called.
 
         """
-
-        # Make sure the tag parameter is an integer and the drf
-        # parameter is a string. Otherwise throw a ValueError
-        # exception.
-
-        if isinstance(tag, int):
-            if isinstance(drf, str):
-                async with self._state_sem as lock:
-                    await self._add_to_list(lock, tag, drf)
-            else:
-                raise ValueError('drf must be a string')
-        else:
-            raise ValueError('tag must be an integer')
-
-    # Private method which sends, concurrently, a list of DRF entries
-    # to DPM.
-
-    async def _add_entries(self, lock, entries):
-        async def xact(tag, drf):
-            try:
-                await self._add_to_list(lock, tag, drf)
-                return []
-            except acsys.status.Status as e:
-                return [(tag, e)]
-
-        result = []
-
-        # Break the list of entries into groups of, at most, 100
-        # entries.
-
-        chunks = [entries[ii:ii + 100] for ii in range(0, len(entries), 100)]
-        loop = asyncio.get_event_loop()
-        for chunk in chunks:
-
-            # Convert each entry in the chunk into a coroutine that
-            # performs the request.
-
-            batch = [loop.create_task(xact(tag, drf)) for tag, drf in chunk]
-
-            # Run all the coroutines at the same time and append the
-            # results to the total result.
-
-            for ii in asyncio.as_completed(batch):
-                result += await ii
-        return result
+        if not isinstance(tag, int):
+            raise ValueError(f'tag must be an integer -- found {tag!r}')
+        if not isinstance(drf, str):
+            raise ValueError(f'drf must be a string -- found {drf!r}')
+        _log.debug('adding tag:%d, drf:%s', tag, drf)
+        self._dev_list[tag] = drf
 
     async def add_entries(self, entries):
-        """Adds multiple entries.
+        """Add multiple ``(tag, drf)`` pairs to the acquisition list.
 
-This is a convenience function to add a list of tag/drf pairs to DPM's
-request list. It sends the requests in parallel so, if you have a
-large set of devices, this function should complete much faster than
-adding them one by one.
+This is a convenience wrapper around :meth:`add_entry`.  Changes take
+effect the next time :meth:`start` is called.
+
         """
-
-        # Validate the array of parameters.
-
         for tag, drf in entries:
             if not isinstance(tag, int):
-                raise ValueError(f'tag must be an integer -- found {tag}')
+                raise ValueError(f'tag must be an integer -- found {tag!r}')
             if not isinstance(drf, str):
-                raise ValueError('drf must be a string -- found {drf}')
-
-        async with self._state_sem as lock:
-            return (await self._add_entries(lock, entries))
+                raise ValueError(f'drf must be a string -- found {drf!r}')
+        for tag, drf in entries:
+            self._dev_list[tag] = drf
 
     async def remove_entry(self, tag):
-        """Removes an entry from the list of devices to be acquired.
+        """Remove a device from the acquisition list.
 
-This updates the list of device requests. The 'tag' parameter is used
-to specify which request should be removed from the list.  The 'tag'
-must be an integer -- the method will raise a ValueError if it's not.
-
-Data associated with the 'tag' will continue to be returned until the
-'.start()' method is called.
+*tag* must be an integer; a :exc:`ValueError` is raised otherwise.
+Data associated with the removed tag continues to be delivered until
+:meth:`start` is called.
 
         """
-
-        # Make sure the tag parameter is an integer and the drf
-        # parameter is a string. Otherwise throw a ValueError
-        # exception.
-
-        if isinstance(tag, int):
-            # Create the message and set the fields appropriately.
-
-            msg = RemoveFromList_request()
-
-            async with self._state_sem:
-                msg.list_id = self.list_id
-                msg.ref_id = tag
-
-                _log.debug('DPM(id: %d) removing tag:%d', self.list_id, tag)
-                await self._request(msg)
-
-                # DPM has been updated so we can safely remove the
-                # entry from our device list.
-
-                del self._dev_list[tag]
-        else:
+        if not isinstance(tag, int):
             raise ValueError('tag must be an integer')
+        _log.debug('removing tag:%d', tag)
+        del self._dev_list[tag]
 
-    async def _start(self, lock):
-        _log.debug('DPM(id: %d) starting list', self.list_id)
-        msg = StartList_request()
-        msg.list_id = self.list_id
-
-        if self.model:
-            msg.model = self.model
-
-        await self._request(msg)
-        self.active = True
+    # ------------------------------------------------------------------
+    # Public API – acquisition control
+    # ------------------------------------------------------------------
 
     async def start(self, model=None):
-        """Start/restart data acquisition using the current request list.
+        """Start (or restart) data acquisition with the current device list.
 
-Calls to '.add_entry()' and '.remove_entry()' make changes to the list
-of requests but don't actually affect data acquisition until this
-method is called. This allows a script to make major adjustments and
-then enable the changes all at once.
+Any previously running subscription is stopped first.  The *model*
+parameter is accepted for backward compatibility but is ignored.
 
         """
-
         self.model = model
 
-        async with self._state_sem as lock:
-            await self._start(lock)
+        await self._stop_subscription()
+        self._drain_queue()
+
+        if not self._dev_list:
+            _log.debug('no devices in list; not starting subscription')
+            return
+
+        # Build a stable ordering: sort by tag so that ref_id 0 always
+        # corresponds to the smallest tag, etc.
+        tags = sorted(self._dev_list.keys())
+        drfs = [self._dev_list[tag] for tag in tags]
+        ref_id_to_tag = {i: tag for i, tag in enumerate(tags)}
+
+        _log.debug('starting GraphQL subscription for %d device(s)', len(drfs))
+        self._sub_task = asyncio.create_task(
+            self._run_subscription(drfs, ref_id_to_tag)
+        )
+        self.active = True
 
     async def stop(self):
-        """Stops data acquisition.
+        """Stop data acquisition.
 
-This method stops data acquisition. The list of requests is unaffected
-so a call to '.start()' will restart the list.
-
-Due to the asynchronous nature of network communications, after
-calling this method, a few readings may still get delivered.
+The device list is preserved; call :meth:`start` to resume.
 
         """
+        _log.debug('stopping DPM')
+        await self._stop_subscription()
+        self.active = False
 
-        msg = StopList_request()
-
-        async with self._state_sem:
-            _log.debug('DPM(id: %d) stopping list', self.list_id)
-            msg.list_id = self.list_id
-            await self._request(msg)
-            self.active = False
+    async def _restore_state(self):
+        """Restart acquisition if the DPM was previously active."""
+        if self.active and self._dev_list:
+            await self.start(self.model)
 
     async def _shutdown(self):
-        if self.dpm_cancel is not None:
-            self.dpm_cancel.cancel()
+        """Shut down the DPM completely."""
+        await self.stop()
 
-    @staticmethod
-    def _build_struct(ref_id, value):
-        if isinstance(value, (bytearray, bytes)):
-            set_struct = RawSetting_struct()
-        elif isinstance(value, str):
-            if not isinstance(value, list):
-                value = [value]
-            set_struct = TextSetting_struct()
-        else:
-            if not isinstance(value, list):
-                value = [value]
-            set_struct = ScaledSetting_struct()
-
-        set_struct.ref_id = ref_id
-        set_struct.data = value
-        return set_struct
-
-    # Performs one round-trip of the Kerberos validation.
-
-    async def _auth_step(self, tok):
-        while True:
-            msg = Authenticate_request()
-            msg.list_id = self.list_id
-            if tok is not None:
-                msg.token = tok
-
-            _, msg = await self.con.request_reply(self.dpm_task, msg,
-                                                  timeout=5000,
-                                                  proto=acsys.dpm.dpm_protocol)
-
-            if isinstance(msg, Authenticate_reply):
-                return msg
-            if isinstance(msg, Status_reply):
-                raise acsys.status.Status(msg.status)
-            raise TypeError(f'unexpected protocol message: %{msg}')
+    # ------------------------------------------------------------------
+    # Public API – settings
+    # ------------------------------------------------------------------
 
     async def enable_settings(self, role=None):
-        """Enable settings for the current DPM session.
+        """Enable device settings for this DPM session.
 
-This method exchanges credentials with the DPM. If successful, the
-session is allowed to make settings. The script must be running in an
-environment with a valid Kerberos ticket. The ticket must part of the
-FNAL.GOV realm and can't be expired.
+With the GraphQL backend, authenticated settings require a Bearer token.
+Set ``con.token = '<your-bearer-token>'`` on the :class:`~acsys.Connection`
+object **before** calling this method.
 
-The credentials are valid as long as this session is maintained.
-
-The `role` parameter indicates in what role your script will be
-running. Your Kerberos principal should be authorized to operate in
-the role.
+The *role* parameter is accepted for backward compatibility.
 
         """
+        if self.con.token:
+            self.can_set = True
+            _log.info('DPM settings enabled via Bearer token')
+        else:
+            warnings.warn(
+                'No Bearer token found on the Connection object. '
+                'Set con.token before calling enable_settings(). '
+                'Settings will not be available.',
+                UserWarning,
+                stacklevel=2,
+            )
+            self.can_set = False
 
-        # Lazy load the gssapi library so that this doesn't block users
-        # who are only doing readings.
-
-        spec = importlib.util.find_spec('gssapi')
-        if spec is None:
-            _log.error('Cannot find the gssapi module')
-            print('To enable settings, the "gssapi" module must be installed.')
-            print(('Run `pip install "acsys[settings]"` '
-                   'to install the required library.'))
-            sys.exit(1)
-
-        # Perform the actual import
-
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        gssapi = importlib.import_module('gssapi')
-        RequirementFlag = gssapi.raw.types.RequirementFlag
-
-        # Get the user's Kerberos credentials. Make sure they are from,
-        # the FNAL.GOV realm and they haven't expired.
-
-        creds = gssapi.creds.Credentials(usage='initiate')
-        principal = str(creds.name).split('@')
-
-        if principal[1] != 'FNAL.GOV':
-            raise ValueError('invalid Kerberos realm')
-        if creds.lifetime <= 0:
-            raise ValueError('Kerberos ticket expired')
-
-        try:
-            # Create a security context used to sign messages.
-
-            msg = await self._auth_step(None)
-            service_name = gssapi.Name(msg.serviceName.translate(
-                {ord('@'): '/', ord('\\'): None}))
-            _log.info(f'service name: {service_name}')
-            ctx = gssapi.SecurityContext(name=service_name, usage='initiate',
-                                         creds=creds,
-                                         flags=[RequirementFlag.replay_detection,
-                                                RequirementFlag.integrity,
-                                                RequirementFlag.out_of_sequence_detection],
-                                         mech=gssapi.MechType.kerberos)
-            try:
-                async with self._state_sem as lock:
-                    if role is not None:
-                        await self._add_to_list(lock, 0, f'#ROLE:{role}')
-
-                    # Enter a loop which steps the security context to
-                    # completion (or an error occurs.)
-
-                    in_tok = None
-                    while not ctx.complete:
-                        msg = await self._auth_step(bytes(ctx.step(in_tok)))
-
-                        if not hasattr(msg, 'token'):
-                            break
-
-                        in_tok = msg.token
-
-                    # Now that the context has been validated, send
-                    # the 'EnableSettings' request with a signed
-                    # message.
-
-                    msg = EnableSettings_request()
-                    msg.list_id = self.list_id
-                    msg.message = b'1234'
-                    msg.MIC = ctx.get_signature(msg.message)
-
-                    await self._request(msg)
-                    self.can_set = True
-                    _log.info('DPM(id: %d) settings enabled', self.list_id)
-            finally:
-                del ctx
-        finally:
-            del creds
+    @staticmethod
+    def _build_dev_value(value):
+        """Convert a Python value into a GraphQL DevValue input dict."""
+        if isinstance(value, (bytearray, bytes)):
+            return {'rawVal': list(value)}
+        if isinstance(value, str):
+            return {'textVal': value}
+        if isinstance(value, list):
+            if value and isinstance(value[0], str):
+                return {'textArrayVal': value}
+            return {'scalarArrayVal': [float(v) for v in value]}
+        return {'scalarVal': float(value)}
 
     async def apply_settings(self, input_array):
-        """A placeholder for apply setting docstring
+        """Apply settings to one or more devices.
+
+*input_array* is a list of ``(tag, value)`` tuples.  *tag* must be an
+integer that was previously registered via :meth:`add_entry`.
+
+Requires :meth:`enable_settings` to have been called successfully.
+
         """
+        import aiohttp
 
-        async with self._state_sem:
-            if not self.can_set:
-                raise RuntimeError('settings are disabled')
+        if not self.can_set:
+            raise RuntimeError('settings are disabled')
 
-            if not isinstance(input_array, list):
-                input_array = [input_array]
+        if not isinstance(input_array, list):
+            input_array = [input_array]
 
-            msg = ApplySettings_request()
+        url = self.con.url + '/acsys'
+        headers = {
+            'Content-Type': 'application/json',
+        }
+        if self.con.token:
+            headers['Authorization'] = f'Bearer {self.con.token}'
 
-            for ref_id, input_val in input_array:
-                if self._dev_list.get(ref_id) is None:
-                    raise ValueError(f'setting for undefined ref_id, {ref_id}')
+        async with aiohttp.ClientSession() as session:
+            for ref_id, value in input_array:
+                drf = self._dev_list.get(ref_id)
+                if drf is None:
+                    raise ValueError(
+                        f'setting for undefined ref_id, {ref_id}')
 
-                s = DPM._build_struct(ref_id, input_val)
-                if isinstance(s, RawSetting_struct):
-                    if not hasattr(msg, 'raw_array'):
-                        msg.raw_array = []
-                    msg.raw_array.append(s)
-                elif isinstance(s, TextSetting_struct):
-                    if not hasattr(msg, 'text_array'):
-                        msg.text_array = []
-                    msg.text_array.append(s)
+                dev_value = self._build_dev_value(value)
+                payload = {
+                    'query': _MUTATION_SET_DEVICE,
+                    'variables': {
+                        'device': drf,
+                        'value': dev_value,
+                    }
+                }
+
+                async with session.post(
+                    url, json=payload, headers=headers
+                ) as resp:
+                    resp.raise_for_status()
+                    result = await resp.json()
+
+                if 'errors' in result:
+                    err = result['errors'][0].get('message', 'unknown error')
+                    raise RuntimeError(f'GraphQL error: {err}')
+
+                data = result.get('data', {})
+                set_result = data.get('_setDevice')
+                if set_result is None:
+                    _log.warning(
+                        'apply_settings: _setDevice returned no result for %s',
+                        drf)
                 else:
-                    if not hasattr(msg, 'scaled_array'):
-                        msg.scaled_array = []
-                    msg.scaled_array.append(s)
-
-            msg.list_id = self.list_id
-            await self._request(msg)
+                    sts = acsys.status.Status(set_result['status'])
+                    if sts.is_fatal:
+                        raise sts
 
 
 class DPMContext:
-    """Creates a communication context with one DPM (of a pool of DPMs.)
-This context should be used in an `async-with-statement` so that
-resources are properly released when the block is exited.
+    """Creates a communication context with DPM.
 
-    async with DpmContext(con) as dpm:
-        # 'dpm' is an instance of DPM and is usable while
-        # in this block.
+This context should be used in an ``async with`` statement so that
+resources are properly released when the block is exited::
 
-Creating a DPM context isn't a trivial process, so it should be done
-at a higher level - preferrably as the script starts up. If a specific
-DPM node isn't required, the context will do a service discovery to
-choose an available DPM. Future versions of this package may move the
-Kerberos negotiation into this section as well, instead of hiding it
-in `.settings_enable()`, so it will be even more expensive.
+    async with DPMContext(con) as dpm:
+        await dpm.add_entry(0, 'Z:BTE200MUON4@i')
+        await dpm.start()
+        async for item in dpm.replies():
+            ...
 
     """
 
@@ -871,10 +721,11 @@ in `.settings_enable()`, so it will be even more expensive.
 
     async def __aenter__(self):
         _log.debug('entering DPM context')
-        await self.dpm._restore_state()
         return self.dpm
 
     async def __aexit__(self, exc_type, exc, tb):
         _log.debug('exiting DPM context')
         await self.dpm._shutdown()
         return False
+
+
