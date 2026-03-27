@@ -30,7 +30,13 @@ settings = [
 dev = [
     "build",
     "wheel",
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "aioresponses",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.setuptools-git-versioning]
 enabled = true

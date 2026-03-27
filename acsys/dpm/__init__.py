@@ -1,6 +1,5 @@
 import datetime
 import asyncio
-import json
 import logging
 import warnings
 import acsys.status
@@ -224,51 +223,40 @@ result of a setting.
 
 
 async def find_dpm(con, *, node=None):
-    """Return None – DPM node discovery is not needed with the GraphQL backend.
+    """Return ``None`` – DPM node discovery is not needed with the GraphQL backend.
 
-This function is kept for backward compatibility.  The GraphQL API
-provides a unified endpoint and does not require discovering individual
-DPM nodes.
-
+    .. deprecated::
+        This function is a no-op.  The GraphQL API provides a unified
+        endpoint; individual DPM node discovery is no longer required.
+        It will be removed in a future version.
     """
+    warnings.warn(
+        'acsys.dpm.find_dpm() is deprecated and always returns None. '
+        'The GraphQL API does not require DPM node discovery.',
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return None
 
 
 async def available_dpms(con):
-    """Return an empty list – DPM discovery is not needed with the GraphQL backend.
+    """Return ``[]`` – DPM discovery is not needed with the GraphQL backend.
 
-This function is kept for backward compatibility.  The GraphQL API
-provides a unified endpoint and does not require discovering individual
-DPM nodes.
-
+    .. deprecated::
+        This function is a no-op.  The GraphQL API provides a unified
+        endpoint; individual DPM node discovery is no longer required.
+        It will be removed in a future version.
     """
+    warnings.warn(
+        'acsys.dpm.available_dpms() is deprecated and always returns []. '
+        'The GraphQL API does not require DPM node discovery.',
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return []
 
 
 # ---------------------------------------------------------------------------
-# GraphQL subscription query used by the DPM class.
-# ---------------------------------------------------------------------------
-
-_SUBSCRIPTION_QUERY = """
-subscription AcceleratorData($drfs: [String!]!) {
-  acceleratorData(drfs: $drfs) {
-    refId
-    data {
-      timestamp
-      result {
-        __typename
-        ... on Scalar { scalarValue }
-        ... on ScalarArray { scalarArrayValue }
-        ... on StatusReply { status }
-        ... on Raw { rawValue }
-        ... on Text { textValue }
-        ... on TextArray { textArrayValue }
-      }
-    }
-  }
-}
-"""
-
 # GraphQL mutation used when applying settings.
 _MUTATION_SET_DEVICE = """
 mutation SetDevice($device: String!, $value: DevValue!) {
@@ -346,84 +334,19 @@ Usage example::
     async def _run_subscription(self, drfs, ref_id_to_tag):
         """Long-running task: subscribe via WebSocket and push items into
         the reply queue."""
-        import aiohttp
-
-        url = self.con.ws_url + '/acsys/s'
-        headers = {}
-        if self.con.token:
-            headers['Authorization'] = f'Bearer {self.con.token}'
+        from acsys import _graphql as gql
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.ws_connect(
-                    url,
-                    protocols=['graphql-transport-ws'],
-                    headers=headers,
-                ) as ws:
-                    # 1. Initialise the graphql-transport-ws session.
-                    await ws.send_str(json.dumps({
-                        'type': 'connection_init',
-                        'payload': {}
-                    }))
-
-                    msg_raw = await ws.receive()
-                    if msg_raw.type != aiohttp.WSMsgType.TEXT:
-                        raise ConnectionError(
-                            f'unexpected WebSocket message type: {msg_raw.type}')
-                    msg = json.loads(msg_raw.data)
-                    if msg.get('type') != 'connection_ack':
-                        raise ConnectionError(
-                            f'expected connection_ack, got {msg.get("type")!r}')
-
-                    # 2. Subscribe to acceleratorData.
-                    await ws.send_str(json.dumps({
-                        'type': 'subscribe',
-                        'id': '1',
-                        'payload': {
-                            'query': _SUBSCRIPTION_QUERY,
-                            'variables': {'drfs': drfs}
-                        }
-                    }))
-
-                    # 3. Receive a continuous stream of data.
-                    while True:
-                        msg_raw = await ws.receive()
-
-                        if msg_raw.type == aiohttp.WSMsgType.TEXT:
-                            msg = json.loads(msg_raw.data)
-                            msg_type = msg.get('type')
-
-                            if msg_type == 'next':
-                                reply = msg['payload']['data']['acceleratorData']
-                                ref_id = reply['refId']
-                                tag = ref_id_to_tag.get(ref_id)
-                                if tag is not None:
-                                    for data_info in reply['data']:
-                                        item = self._xlat_graphql(tag, data_info)
-                                        if item is not None:
-                                            await self._rpy_q.put(item)
-
-                            elif msg_type == 'ping':
-                                # Respond to server keep-alive pings.
-                                await ws.send_str(json.dumps({'type': 'pong'}))
-
-                            elif msg_type == 'complete':
-                                break
-
-                            elif msg_type == 'error':
-                                errors = msg.get('payload') or []
-                                err_msg = (errors[0].get('message', 'subscription error')
-                                           if errors else 'subscription error')
-                                raise RuntimeError(err_msg)
-
-                        elif msg_raw.type in (
-                            aiohttp.WSMsgType.CLOSE,
-                            aiohttp.WSMsgType.CLOSING,
-                            aiohttp.WSMsgType.CLOSED,
-                            aiohttp.WSMsgType.ERROR,
-                        ):
-                            break
-
+            async for reply in gql.ws_subscribe(
+                self.con.ws_url, self.con.token, drfs,
+            ):
+                ref_id = reply['refId']
+                tag = ref_id_to_tag.get(ref_id)
+                if tag is not None:
+                    for data_info in reply['data']:
+                        item = self._xlat_graphql(tag, data_info)
+                        if item is not None:
+                            await self._rpy_q.put(item)
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -627,16 +550,13 @@ The *role* parameter is accepted for backward compatibility.
 
     @staticmethod
     def _build_dev_value(value):
-        """Convert a Python value into a GraphQL DevValue input dict."""
-        if isinstance(value, (bytearray, bytes)):
-            return {'rawVal': list(value)}
-        if isinstance(value, str):
-            return {'textVal': value}
-        if isinstance(value, list):
-            if value and isinstance(value[0], str):
-                return {'textArrayVal': value}
-            return {'scalarArrayVal': [float(v) for v in value]}
-        return {'scalarVal': float(value)}
+        """Convert a Python value into a GraphQL DevValue input dict.
+
+        .. deprecated::
+            Use :func:`acsys._graphql.build_dev_value` instead.
+        """
+        from acsys import _graphql as gql
+        return gql.build_dev_value(value)
 
     async def apply_settings(self, input_array):
         """Apply settings to one or more devices.
@@ -647,7 +567,7 @@ integer that was previously registered via :meth:`add_entry`.
 Requires :meth:`enable_settings` to have been called successfully.
 
         """
-        import aiohttp
+        from acsys import _graphql as gql
 
         if not self.can_set:
             raise RuntimeError('settings are disabled')
@@ -655,66 +575,41 @@ Requires :meth:`enable_settings` to have been called successfully.
         if not isinstance(input_array, list):
             input_array = [input_array]
 
-        url = self.con.url + '/acsys'
-        headers = {
-            'Content-Type': 'application/json',
-        }
-        if self.con.token:
-            headers['Authorization'] = f'Bearer {self.con.token}'
-
-        async with aiohttp.ClientSession() as session:
-            for ref_id, value in input_array:
-                drf = self._dev_list.get(ref_id)
-                if drf is None:
-                    raise ValueError(
-                        f'setting for undefined ref_id, {ref_id}')
-
-                dev_value = self._build_dev_value(value)
-                payload = {
-                    'query': _MUTATION_SET_DEVICE,
-                    'variables': {
-                        'device': drf,
-                        'value': dev_value,
-                    }
-                }
-
-                async with session.post(
-                    url, json=payload, headers=headers
-                ) as resp:
-                    resp.raise_for_status()
-                    result = await resp.json()
-
-                if 'errors' in result:
-                    err = result['errors'][0].get('message', 'unknown error')
-                    raise RuntimeError(f'GraphQL error: {err}')
-
-                data = result.get('data', {})
-                set_result = data.get('_setDevice')
-                if set_result is None:
-                    _log.warning(
-                        'apply_settings: _setDevice returned no result for %s',
-                        drf)
-                else:
-                    sts = acsys.status.Status(set_result['status'])
-                    if sts.is_fatal:
-                        raise sts
+        for ref_id, value in input_array:
+            drf = self._dev_list.get(ref_id)
+            if drf is None:
+                raise ValueError(
+                    f'setting for undefined ref_id, {ref_id}')
+            await gql.http_set_device(
+                self.con.url, self.con.token, drf, value)
 
 
 class DPMContext:
     """Creates a communication context with DPM.
 
-This context should be used in an ``async with`` statement so that
-resources are properly released when the block is exited::
+    .. deprecated::
+        Use the top-level :func:`acsys.read`, :func:`acsys.set_device`,
+        :func:`acsys.subscribe`, or :class:`acsys.Device` instead.
+        ``DPMContext`` will be removed in a future version.
 
-    async with DPMContext(con) as dpm:
-        await dpm.add_entry(0, 'Z:BTE200MUON4@i')
-        await dpm.start()
-        async for item in dpm.replies():
-            ...
+    This context should be used in an ``async with`` statement so that
+    resources are properly released when the block is exited::
+
+        async with DPMContext(con) as dpm:
+            await dpm.add_entry(0, 'Z:BTE200MUON4@i')
+            await dpm.start()
+            async for item in dpm.replies():
+                ...
 
     """
 
     def __init__(self, con, *, dpm_node=None):
+        warnings.warn(
+            'acsys.dpm.DPMContext is deprecated. '
+            'Use acsys.read(), acsys.subscribe(), or acsys.Device instead.',
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.dpm = DPM(con, dpm_node)
 
     async def __aenter__(self):
