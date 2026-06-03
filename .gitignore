@@ -143,5 +143,5 @@ acsys.tgz
 tests/
 .python-version
 vscode
+.vscode
 Claude/
-uv.lock
