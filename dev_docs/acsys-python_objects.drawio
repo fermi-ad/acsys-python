@@ -1,0 +1,46 @@
+<mxfile host="Electron">
+  <diagram name="Page-1" id="0kTFNGCxXCoqyE6caHLk">
+    <mxGraphModel dx="114" dy="723" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="PK7kKUTST45bFfUlHUo8-1" parent="1" style="ellipse;whiteSpace=wrap;html=1;verticalAlign=top;" value="composite beamline object?&lt;br&gt;or also a &quot;software object?&quot;" vertex="1">
+          <mxGeometry height="120" width="330" x="1330" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="PK7kKUTST45bFfUlHUo8-2" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="beamline object" vertex="1">
+          <mxGeometry height="40" width="120" x="940" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="PK7kKUTST45bFfUlHUo8-3" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="software object" vertex="1">
+          <mxGeometry height="40" width="130" x="1100" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="PK7kKUTST45bFfUlHUo8-4" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="beamline object" vertex="1">
+          <mxGeometry height="40" width="70" x="1470" y="205" as="geometry" />
+        </mxCell>
+        <mxCell id="PK7kKUTST45bFfUlHUo8-5" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="beamline object" vertex="1">
+          <mxGeometry height="40" width="70" x="1375" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="PK7kKUTST45bFfUlHUo8-6" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="beamline object" vertex="1">
+          <mxGeometry height="40" width="70" x="1540" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="PK7kKUTST45bFfUlHUo8-7" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;rounded=0;" value="&lt;div style=&quot;line-height: 100%;&quot;&gt;- magnets&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;- cavities&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;- instruments&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;&amp;nbsp; &amp;nbsp; - BLMs&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;&amp;nbsp; &amp;nbsp; - Wires&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;&amp;nbsp; &amp;nbsp; - BPMs&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;- pumps&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;- DI bottles&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;- horns&lt;/div&gt;" vertex="1">
+          <mxGeometry height="130" width="100" x="970" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="PK7kKUTST45bFfUlHUo8-8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;rounded=0;" value="&lt;div style=&quot;line-height: 100%;&quot;&gt;- auto-tune?&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;- prediction systems: &lt;br&gt;&amp;nbsp; &amp;nbsp; - L-CAPE?&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;- machine-wide metrics&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="180" x="1100" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="PK7kKUTST45bFfUlHUo8-9" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;rounded=0;" value="&lt;div style=&quot;line-height: 100%;&quot;&gt;- kickers&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;&amp;nbsp; &amp;nbsp; - power supply&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;&amp;nbsp; &amp;nbsp; - timing system&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;&amp;nbsp; &amp;nbsp; - magnet settings?&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;- LLRF&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;&amp;nbsp; &amp;nbsp; - 2.5MHz&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;&amp;nbsp; &amp;nbsp; - Cogging&lt;/div&gt;&lt;div style=&quot;line-height: 100%;&quot;&gt;&amp;nbsp; &amp;nbsp; - ?&lt;/div&gt;" vertex="1">
+          <mxGeometry height="155" width="150" x="1420" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="6srpD9kml6HOl9hJ3LAc-1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=24;" value="Possible Organizational Abstraction Concepts" vertex="1">
+          <mxGeometry height="80" width="830" x="860" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="6srpD9kml6HOl9hJ3LAc-2" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1280" y="460" as="sourcePoint" />
+            <mxPoint x="1280" y="100" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

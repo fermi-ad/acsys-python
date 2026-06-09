@@ -144,4 +144,5 @@ tests/
 .python-version
 vscode
 .vscode
+*.bkp
 Claude/
