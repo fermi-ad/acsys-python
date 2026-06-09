@@ -113,7 +113,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
+*.DS_Store
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -142,4 +142,7 @@ cython_debug/
 acsys.tgz
 tests/
 .python-version
+vscode
 .vscode
+*.bkp
+Claude/
