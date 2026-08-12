@@ -1,6 +1,6 @@
 # Issue 1: [Test Infrastructure] Configure pytest and pytest-asyncio in `pyproject.toml`
 
-**Status:** Configuration implemented on branch `chore/configure-pytest`; full-suite verification is blocked by the pre-existing Issue 2 regression test and no Issue 2 code changes were made.
+**Status:** Implemented on branch `chore/configure-pytest`. Configuration and installation checks pass; full-suite verification remains blocked by the pre-existing Issue 2 regression test. No Issue 2 code changes were made, and work stops here pending Issue 2 approval.
 
 ## Summary
 
@@ -30,10 +30,13 @@ Move the test-runner configuration and async test dependency into the project me
 
 ## Verification
 
-- Create a clean virtual environment and install the development/test extras from `pyproject.toml`.
-- Run `python -m pytest` locally.
-- Run the GitHub Actions-equivalent lint and test commands, including the configured Python-version matrix where available.
-- Confirm that no production package dependency is added solely for test infrastructure.
+- Clean virtual environment: `pip install -e ".[dev]"` succeeded and installed `pytest`, `pytest-asyncio`, `build`, and `wheel` from the project metadata.
+- Async configuration smoke test: passed with `asyncio_mode = "auto"`.
+- Pytest collection: passed (`1 test collected`).
+- Full `python -m pytest -q`: blocked by the existing `tests/test_dpm_task_context.py` expectation; it fails because the test does not raise the Issue 2 `RuntimeError` under the current Python 3.13 runtime.
+- Python 3.8 and 3.9 dependency resolution: passed using compatible `pytest`/`pytest-asyncio` releases.
+- Wheel build: passed after installing the declared build backend dependencies; only pre-existing setuptools license deprecation warnings were emitted.
+- No production package dependency was added solely for test infrastructure.
 
 ## Dependencies and risks
 
