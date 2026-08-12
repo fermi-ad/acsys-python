@@ -411,7 +411,10 @@ This method is the preferred way to iterate over DPM replies.
 
         """
         while True:
-            ii = await asyncio.wait_for(self.__anext__(), tmo)
+            reply_task = asyncio.create_task(self.__anext__())
+            timeout_task = asyncio.create_task(
+                asyncio.wait_for(reply_task, tmo))
+            ii = await timeout_task
             if ii is None:
                 return
             yield ii
