@@ -11,7 +11,7 @@ Move the test-runner configuration and async test dependency into the project me
 - `pyproject.toml` currently declares only `build`, `wheel`, and `setuptools`-related development tooling; it does not declare `pytest` or `pytest-asyncio`.
 - The GitHub Actions workflow installs `pytest` and `flake8` directly in `.github/workflows/python-package.yml`.
 - `tests/test_dpm_task_context.py` imports `pytest` and exercises asyncio behavior, but is currently written around a manually managed event loop rather than `pytest-asyncio` fixtures/markers.
-- The package supports Python `>=3.9.21`, while CI also lists Python 3.8; the supported-version policy and compatible `pytest-asyncio` range should be respected rather than assumed.
+- The package supports Python `>=3.9.21`; CI should cover Python 3.9 through 3.13, including the AlmaLinux 9.6 baseline (`3.9.21`).
 
 ## Scope
 
@@ -34,7 +34,8 @@ Move the test-runner configuration and async test dependency into the project me
 - Async configuration smoke test: passed with `asyncio_mode = "auto"`.
 - Pytest collection: passed (`1 test collected`).
 - Full `python -m pytest -q`: blocked by the existing `tests/test_dpm_task_context.py` expectation; it fails because the test does not raise the Issue 2 `RuntimeError` under the current Python 3.13 runtime.
-- Python 3.8 and 3.9 dependency resolution: passed using compatible `pytest`/`pytest-asyncio` releases.
+- Python 3.9 dependency resolution: passed using compatible `pytest`/`pytest-asyncio` releases.
+- Python 3.8 was removed from the CI matrix because the project minimum is Python `3.9.21` and AlmaLinux is now on Python 3.9.
 - Wheel build: passed after installing the declared build backend dependencies; only pre-existing setuptools license deprecation warnings were emitted.
 - No production package dependency was added solely for test infrastructure.
 
